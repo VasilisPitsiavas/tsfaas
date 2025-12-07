@@ -230,3 +230,4 @@ Forecastly is a modern, polished time-series forecasting SaaS that prioritizes s
 
 The instructions above describe every architectural component, required UX behavior, backend API, and development workflow needed for Cursor to confidently generate and evolve the entire application.
 
+
