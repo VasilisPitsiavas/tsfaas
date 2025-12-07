@@ -1,0 +1,73 @@
+# backend/app/api/upload.py
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import JSONResponse
+import uuid
+import os
+from typing import Dict, Any, List
+from ..ml.preprocessing import analyze_csv_preview
+from ..storage.storage import save_file, get_presigned_url_if_needed
+from ..core.config import DATA_DIR
+
+router = APIRouter()
+
+# Ensure DATA_DIR exists
+os.makedirs(DATA_DIR, exist_ok=True)
+
+
+@router.post("/upload")
+async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
+    """
+    Accept CSV upload, store it, return job_id, detected columns and preview rows.
+    """
+    filename = file.filename
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are supported for now.")
+
+    job_id = str(uuid.uuid4())
+    # create a job-specific folder
+    job_folder = os.path.join(DATA_DIR, job_id)
+    os.makedirs(job_folder, exist_ok=True)
+    file_path = os.path.join(job_folder, filename)
+
+    # save file bytes - delegate to storage layer (supports S3 / local)
+    file_bytes = await file.read()
+    save_file(file_path, file_bytes)  # storage.save_file must accept (path, bytes)
+
+    # run light-weight analysis on a preview of the CSV
+    try:
+        analysis = analyze_csv_preview(file_path, nrows=10)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to analyze CSV: {str(e)}")
+
+    # minimal job metadata (you can replace with DB later)
+    metadata = {
+        "job_id": job_id,
+        "original_filename": filename,
+        "file_path": file_path,
+        "columns": analysis.get("columns", []),
+        "time_candidates": analysis.get("time_candidates", []),
+        "preview": analysis.get("preview", []),
+    }
+
+    # save metadata to a json file for later retrieval by /forecast endpoint or worker
+    import json
+    meta_path = os.path.join(job_folder, "metadata.json")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+
+    # Optionally return a presigned URL for download/preview (if using S3)
+    presigned_url = None
+    try:
+        presigned_url = get_presigned_url_if_needed(file_path)
+    except Exception:
+        presigned_url = None
+
+    response = {
+        "job_id": job_id,
+        "columns": metadata["columns"],
+        "time_candidates": metadata["time_candidates"],
+        "preview": metadata["preview"],
+        "file_url": presigned_url,
+    }
+
+    return JSONResponse(response) 
