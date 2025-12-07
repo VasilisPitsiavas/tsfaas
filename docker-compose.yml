@@ -18,8 +18,10 @@ services:
       - STORAGE_SECRET_KEY=minioadmin
       - STORAGE_BUCKET=forecastly-uploads
       - CORS_ORIGINS=http://localhost:3000
+      - DATA_DIR=/app/data
     volumes:
       - ./backend:/app
+      - backend_data:/app/data
     depends_on:
       - postgres
       - redis
@@ -33,7 +35,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: forecastly-worker
-    command: rq worker --url redis://redis:6379 forecast
+    command: python worker.py
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -42,8 +44,11 @@ services:
       - STORAGE_ACCESS_KEY=minioadmin
       - STORAGE_SECRET_KEY=minioadmin
       - STORAGE_BUCKET=forecastly-uploads
+      - DATA_DIR=/app/data
+      - JOB_TIMEOUT=3600
     volumes:
       - ./backend:/app
+      - backend_data:/app/data
     depends_on:
       - postgres
       - redis
@@ -51,6 +56,7 @@ services:
       - backend
     networks:
       - forecastly-network
+    restart: unless-stopped
 
   # Frontend
   frontend:
@@ -117,6 +123,7 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  backend_data:  # For job data storage
 
 networks:
   forecastly-network:
