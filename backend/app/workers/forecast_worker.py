@@ -1,18 +1,32 @@
-"""Background worker for processing forecast jobs."""
+"""Background worker for processing forecast jobs with full export support."""
 from typing import Dict, Any
 import os
 import json
-from rq import Job
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import warnings
+warnings.filterwarnings('ignore')
 
-from app.ml.models import ModelManager
+from app.ml.model_manager import ModelManager
 from app.ml.preprocessing import load_and_prepare_timeseries
 from app.storage.storage import get_file_from_storage
 from app.core.config import DATA_DIR
+
+# Chart generation (optional, skip if matplotlib not available)
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Non-interactive backend
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 
 def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process a forecast job in the background.
+    Writes result.json, forecast.csv, and forecast.png (if matplotlib available).
     
     Args:
         job_id: Upload job ID
@@ -21,9 +35,11 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
     Returns:
         Forecast results including predictions and metrics
     """
+    job_folder = os.path.join(DATA_DIR, job_id)
+    forecast_id = forecast_config.get("forecast_id", "unknown")
+    
     try:
         # Load job metadata to get file path
-        job_folder = os.path.join(DATA_DIR, job_id)
         metadata_path = os.path.join(job_folder, "metadata.json")
         
         if not os.path.exists(metadata_path):
@@ -37,7 +53,7 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             # Try to get from storage
             file_path = get_file_from_storage(job_id)
         
-        # Load and prepare time series using the preprocessing function
+        # Load and prepare time series
         time_column = forecast_config["time_column"]
         target_column = forecast_config["target_column"]
         
@@ -48,36 +64,106 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             parse_dates=True
         )
         
+        # Determine model to use
+        model_choice = forecast_config.get("model", "auto")
+        
         # Fit models
         model_manager = ModelManager()
-        fitted_models = model_manager.fit_all(
-            data=df,
-            target_column="y",  # load_and_prepare_timeseries returns column named 'y'
-            exogenous=forecast_config.get("exogenous")
-        )
         
-        # Compare models
-        metrics = model_manager.compare_models(fitted_models)
+        if model_choice == "auto":
+            # Fit all models and select best
+            fitted_models = model_manager.fit_all(
+                data=df,
+                target_column="y",
+                exogenous=forecast_config.get("exogenous")
+            )
+            
+            if not fitted_models:
+                raise ValueError("No models could be fitted")
+            
+            metrics = model_manager.compare_models(fitted_models)
+            best_model_name = model_manager.select_best_model(metrics)
+            best_model = fitted_models[best_model_name]
+        else:
+            # Fit specific model
+            if model_choice not in model_manager.models:
+                raise ValueError(f"Model '{model_choice}' not available")
+            
+            model = model_manager.models[model_choice]
+            model.fit(df, target_column="y", exogenous=forecast_config.get("exogenous"))
+            model.evaluate()
+            best_model_name = model_choice
+            best_model = model
+            metrics = {best_model_name: model.get_metrics()}
         
-        # Select best model
-        best_model_name = model_manager.select_best_model(metrics)
-        best_model = fitted_models[best_model_name]
-        
-        # Generate predictions
+        # Generate predictions with confidence intervals
         horizon = forecast_config.get("horizon", 14)
-        predictions = best_model.predict(horizon=horizon)
+        pred_result = best_model.predict(horizon=horizon, return_conf_int=True)
+        
+        predictions = pred_result['forecast']
+        lower_bound = pred_result.get('lower')
+        upper_bound = pred_result.get('upper')
+        
+        # Generate forecast dates
+        last_date = df.index[-1]
+        freq = pd.infer_freq(df.index) or 'D'
+        forecast_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=horizon, freq=freq)
+        
+        # Save model artifact
+        model_path = os.path.join(job_folder, f"model_{best_model_name}.pkl")
+        try:
+            model_manager.save_model(best_model, model_path)
+        except Exception as e:
+            warnings.warn(f"Failed to save model artifact: {e}")
+        
+        # Create forecast DataFrame
+        forecast_df = pd.DataFrame({
+            'date': forecast_dates,
+            'forecast': predictions
+        })
+        
+        if lower_bound is not None:
+            forecast_df['lower'] = lower_bound
+        if upper_bound is not None:
+            forecast_df['upper'] = upper_bound
+        
+        # Export CSV
+        csv_path = os.path.join(job_folder, "forecast.csv")
+        forecast_df.to_csv(csv_path, index=False)
+        
+        # Generate chart (if matplotlib available)
+        chart_path = None
+        if MATPLOTLIB_AVAILABLE:
+            try:
+                chart_path = os.path.join(job_folder, "forecast.png")
+                _generate_forecast_chart(
+                    historical=df,
+                    forecast_df=forecast_df,
+                    target_column="y",
+                    output_path=chart_path
+                )
+            except Exception as e:
+                warnings.warn(f"Failed to generate chart: {e}")
         
         # Prepare results
         results = {
-            "forecast_id": forecast_config.get("forecast_id"),
+            "forecast_id": forecast_id,
             "job_id": job_id,
             "model_used": best_model_name,
             "predictions": predictions.tolist() if hasattr(predictions, 'tolist') else list(predictions),
+            "forecast_dates": [d.isoformat() for d in forecast_dates],
+            "lower_bound": lower_bound.tolist() if lower_bound is not None and hasattr(lower_bound, 'tolist') else (list(lower_bound) if lower_bound is not None else None),
+            "upper_bound": upper_bound.tolist() if upper_bound is not None and hasattr(upper_bound, 'tolist') else (list(upper_bound) if upper_bound is not None else None),
             "metrics": metrics,
-            "status": "completed"
+            "historical_data_points": len(df),
+            "forecast_horizon": horizon,
+            "csv_path": csv_path,
+            "chart_path": chart_path,
+            "status": "completed",
+            "completed_at": datetime.utcnow().isoformat()
         }
         
-        # Save results to job folder
+        # Save results JSON
         results_path = os.path.join(job_folder, "results.json")
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
@@ -85,16 +171,20 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
         return results
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        
         error_result = {
-            "forecast_id": forecast_config.get("forecast_id"),
+            "forecast_id": forecast_id,
             "job_id": job_id,
             "status": "failed",
-            "error": str(e)
+            "error": str(e),
+            "error_trace": error_trace,
+            "failed_at": datetime.utcnow().isoformat()
         }
         
         # Save error result
         try:
-            job_folder = os.path.join(DATA_DIR, job_id)
             error_path = os.path.join(job_folder, "error.json")
             with open(error_path, 'w') as f:
                 json.dump(error_result, f, indent=2)
@@ -103,3 +193,66 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
         
         return error_result
 
+
+def _generate_forecast_chart(
+    historical: pd.DataFrame,
+    forecast_df: pd.DataFrame,
+    target_column: str,
+    output_path: str
+) -> None:
+    """
+    Generate a forecast visualization chart.
+    
+    Args:
+        historical: Historical data DataFrame with datetime index
+        forecast_df: Forecast DataFrame with 'date', 'forecast', 'lower', 'upper' columns
+        target_column: Name of target column in historical data
+        output_path: Path to save the chart
+    """
+    plt.figure(figsize=(12, 6))
+    
+    # Plot historical data
+    plt.plot(
+        historical.index,
+        historical[target_column],
+        label='Historical',
+        color='blue',
+        linewidth=2
+    )
+    
+    # Plot forecast
+    forecast_dates = pd.to_datetime(forecast_df['date'])
+    plt.plot(
+        forecast_dates,
+        forecast_df['forecast'],
+        label='Forecast',
+        color='red',
+        linewidth=2,
+        linestyle='--'
+    )
+    
+    # Plot confidence intervals if available
+    if 'lower' in forecast_df.columns and 'upper' in forecast_df.columns:
+        plt.fill_between(
+            forecast_dates,
+            forecast_df['lower'],
+            forecast_df['upper'],
+            alpha=0.3,
+            color='red',
+            label='Confidence Interval'
+        )
+    
+    # Add vertical line separating historical and forecast
+    last_historical_date = historical.index[-1]
+    plt.axvline(x=last_historical_date, color='gray', linestyle=':', alpha=0.7)
+    
+    plt.xlabel('Date')
+    plt.ylabel('Value')
+    plt.title('Time Series Forecast')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    # Save chart
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()

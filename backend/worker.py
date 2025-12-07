@@ -1,6 +1,5 @@
 """
 RQ worker entry point for background job processing.
-Run with: rq worker --url redis://redis:6379 forecast
 """
 import sys
 from rq import Worker, Queue, Connection
@@ -12,10 +11,14 @@ if __name__ == "__main__":
     redis_conn = Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
-        db=settings.REDIS_DB
+        db=settings.REDIS_DB,
+        decode_responses=False  # RQ needs bytes
     )
     
+    print(f"Starting RQ worker connected to {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+    print(f"Listening on queue: forecast")
+    
     with Connection(redis_conn):
-        worker = Worker(['forecast'])
+        worker = Worker(['forecast'], default_result_ttl=3600*24)
         worker.work()
 
