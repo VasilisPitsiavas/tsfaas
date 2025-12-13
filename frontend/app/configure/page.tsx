@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
-import Results from '@/intfrontend/pages/Results';
+import Configure from '@/intfrontend/pages/Configure';
 
 export const dynamic = 'force-dynamic';
 
-export default function ResultsPage() {
+export default function ConfigurePage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
-      <Results />
+      <Configure />
     </Suspense>
   );
 }

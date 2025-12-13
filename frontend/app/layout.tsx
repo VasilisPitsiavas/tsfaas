@@ -1,12 +1,10 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
-
-const inter = Inter({ subsets: ['latin'] });
+import Layout from '@/intfrontend/Layout';
 
 export const metadata: Metadata = {
-  title: 'Forecastly - Time Series Forecasting',
-  description: 'Upload a CSV and get instant time series forecasts',
+  title: 'Forecastly - Time Series Forecasting as a Service',
+  description: 'Upload your time-series data and get professional forecasts in minutes.',
 };
 
 export default function RootLayout({
@@ -16,8 +14,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body>
+        <Layout>
+          {children}
+        </Layout>
+      </body>
     </html>
   );
 }
-

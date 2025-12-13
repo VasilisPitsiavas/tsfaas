@@ -1,6 +1,7 @@
 """Job queue management using Redis and RQ."""
 from typing import Dict, Any, Optional
-from rq import Queue, Job
+from rq import Queue
+from rq.job import Job
 from redis import Redis
 
 from app.core.config import settings

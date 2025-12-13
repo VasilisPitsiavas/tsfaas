@@ -3,6 +3,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 import uuid
 import os
+import json
 from typing import Dict, Any, List
 from ..ml.preprocessing import analyze_csv_preview
 from ..storage.storage import save_file, get_presigned_url_if_needed
@@ -14,7 +15,7 @@ router = APIRouter()
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
-@router.post("/upload")
+@router.post("")
 async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
     """
     Accept CSV upload, store it, return job_id, detected columns and preview rows.
@@ -50,7 +51,6 @@ async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
     }
 
     # save metadata to a json file for later retrieval by /forecast endpoint or worker
-    import json
     meta_path = os.path.join(job_folder, "metadata.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)

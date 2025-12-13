@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
+  --foreground-rgb: 17, 24, 39; /* gray-900 */
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
 }
@@ -26,3 +26,13 @@ body {
     rgb(var(--background-start-rgb));
 }
 
+/* Ensure form elements have proper colors */
+select, input[type="text"], input[type="number"], input[type="email"] {
+  color: #111827 !important; /* gray-900 */
+  background-color: #ffffff !important;
+}
+
+select option {
+  color: #111827;
+  background-color: #ffffff;
+}

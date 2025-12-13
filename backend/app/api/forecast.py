@@ -5,6 +5,7 @@ from typing import Dict, List, Any, Optional
 import os
 import uuid
 import re
+import json
 
 from app.queue.job_queue import enqueue_forecast_job, get_job_status, get_job_result
 from app.core.config import DATA_DIR
@@ -191,7 +192,6 @@ async def get_forecast(forecast_id: str) -> Dict[str, Any]:
         # Check if results exist in file system (fallback)
         # This happens if job completed but RQ result expired
         try:
-            import json
             # Forecast_id is RQ job ID, but we need to find the job_id
             # For now, try to load from any job folder that has this forecast_id
             # In production, you'd want a mapping table
@@ -217,6 +217,10 @@ async def get_forecast(forecast_id: str) -> Dict[str, Any]:
     
     if isinstance(result, dict) and result.get('status') == 'failed':
         raise HTTPException(status_code=500, detail=result.get('error', 'Forecast failed'))
+    
+    # Ensure result is a dict
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=500, detail=f"Invalid result format: {type(result)}")
     
     return result
 

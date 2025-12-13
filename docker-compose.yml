@@ -68,10 +68,12 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+    # Removed volume mounts for production - they override the built files
+    # For development, uncomment these lines:
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
+    #   - /app/.next
     depends_on:
       - backend
     networks:
