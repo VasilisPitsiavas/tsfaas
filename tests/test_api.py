@@ -17,22 +17,27 @@ def test_health_endpoint(client: TestClient):
     assert response.json()["status"] == "healthy"
 
 
-def test_upload_endpoint_not_implemented(client: TestClient):
-    """Test upload endpoint returns 501 (not implemented)."""
-    # TODO: Update when upload is implemented
-    response = client.post("/api/upload", files={"file": ("test.csv", b"test")})
-    assert response.status_code == 501
+def test_upload_endpoint_accepts_csv(client: TestClient):
+    """Test upload endpoint accepts CSV files."""
+    csv_content = b"date,sales\n2023-01-01,100\n2023-01-02,120"
+    response = client.post("/api/upload", files={"file": ("test.csv", csv_content, "text/csv")})
+    # Should return 200 with job_id and columns
+    assert response.status_code == 200
+    data = response.json()
+    assert "job_id" in data
+    assert "columns" in data
 
 
-def test_forecast_endpoint_not_implemented(client: TestClient):
-    """Test forecast endpoint returns 501 (not implemented)."""
-    # TODO: Update when forecast is implemented
+def test_forecast_endpoint_validates_input(client: TestClient):
+    """Test forecast endpoint validates input properly."""
+    # Test with invalid job_id format (should return 422 validation error)
     response = client.post("/api/forecast", json={
-        "job_id": "test-id",
+        "job_id": "invalid-job-id-format!",
         "time_column": "date",
         "target_column": "sales",
         "horizon": 14,
         "model": "auto"
     })
-    assert response.status_code == 501
+    # Should return 422 (validation error) for invalid job_id format
+    assert response.status_code == 422
 
