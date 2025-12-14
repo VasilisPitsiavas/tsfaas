@@ -5,10 +5,12 @@ from dateutil.parser import parse as date_parse
 import numpy as np
 import csv
 
+
 def read_csv_head(path: str, nrows: int = 10) -> pd.DataFrame:
     """Read small portion of CSV safely using pandas (infer datetime later)."""
     # Use low_memory to avoid dtype warnings on large files
     return pd.read_csv(path, nrows=nrows, low_memory=False)
+
 
 def detect_time_columns(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
@@ -53,6 +55,7 @@ def detect_time_columns(df: pd.DataFrame) -> List[Dict[str, Any]]:
     candidates_sorted = sorted(candidates, key=lambda x: x["score"], reverse=True)
     return candidates_sorted
 
+
 def analyze_csv_preview(path: str, nrows: int = 10) -> Dict[str, Any]:
     """
     Read the CSV head and return:
@@ -67,9 +70,16 @@ def analyze_csv_preview(path: str, nrows: int = 10) -> Dict[str, Any]:
     preview = df.fillna("").head(nrows).to_dict(orient="records")
     return {"columns": cols, "time_candidates": time_candidates, "preview": preview}
 
+
 # Additional helper: parse full CSV and return cleaned ts dataframe
-def load_and_prepare_timeseries(path: str, time_col: str, target_col: str, freq: str = None,
-                                resample_rule: str = None, parse_dates: bool = True) -> pd.DataFrame:
+def load_and_prepare_timeseries(
+    path: str,
+    time_col: str,
+    target_col: str,
+    freq: str = None,
+    resample_rule: str = None,
+    parse_dates: bool = True,
+) -> pd.DataFrame:
     """
     Load full csv, parse time_col, set index to datetime, select target_col, handle missing values.
     - freq: optional frequency hint like 'D' or 'W'
@@ -79,10 +89,12 @@ def load_and_prepare_timeseries(path: str, time_col: str, target_col: str, freq:
     df = pd.read_csv(path, low_memory=False)
     if parse_dates:
         try:
-            df[time_col] = pd.to_datetime(df[time_col], infer_datetime_format=True, errors='coerce')
+            df[time_col] = pd.to_datetime(df[time_col], infer_datetime_format=True, errors="coerce")
         except Exception:
             # fallback to custom parsing per row
-            df[time_col] = df[time_col].apply(lambda v: date_parse(str(v)) if pd.notnull(v) else pd.NaT)
+            df[time_col] = df[time_col].apply(
+                lambda v: date_parse(str(v)) if pd.notnull(v) else pd.NaT
+            )
 
     df = df.dropna(subset=[time_col])
     df = df.set_index(time_col)

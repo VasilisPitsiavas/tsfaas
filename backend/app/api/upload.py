@@ -77,29 +77,30 @@ async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
 async def get_upload_info(job_id: str) -> Dict[str, Any]:
     """
     Get information about an uploaded CSV file.
-    
+
     Args:
         job_id: Unique identifier for the upload
-        
+
     Returns:
         Upload information including columns and preview
     """
     import re
+
     # Sanitize job_id
-    sanitized_id = re.sub(r'[./\\]', '', job_id)
-    
+    sanitized_id = re.sub(r"[./\\]", "", job_id)
+
     job_folder = os.path.join(DATA_DIR, sanitized_id)
     metadata_path = os.path.join(job_folder, "metadata.json")
-    
+
     if not os.path.exists(metadata_path):
         raise HTTPException(status_code=404, detail="Upload not found")
-    
-    with open(metadata_path, 'r') as f:
+
+    with open(metadata_path, "r") as f:
         metadata = json.load(f)
-    
+
     return {
         "job_id": sanitized_id,
         "columns": metadata.get("columns", []),
         "time_candidates": metadata.get("time_candidates", []),
-        "preview": metadata.get("preview", [])
-    } 
+        "preview": metadata.get("preview", []),
+    }

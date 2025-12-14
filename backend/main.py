@@ -1,6 +1,7 @@
 """
 FastAPI application entry point.
 """
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -25,6 +26,7 @@ app.add_middleware(
 # Include API router
 app.include_router(router, prefix="/api")
 
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -35,4 +37,3 @@ async def root():
 async def health():
     """Health check endpoint."""
     return {"status": "healthy"}
-
