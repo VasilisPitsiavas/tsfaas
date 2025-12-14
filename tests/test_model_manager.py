@@ -5,6 +5,7 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # Import models (may fail if dependencies not installed)
+IMPORT_ERROR = ""  # Initialize to avoid NameError when import succeeds
 try:
     from backend.app.ml.model_manager import (
         ARIMAForecaster,
@@ -38,21 +39,27 @@ def sample_time_series_weekly():
     return df
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_infer_frequency_daily(sample_time_series):
     """Test frequency inference for daily data."""
     freq = infer_frequency(sample_time_series.index)
     assert freq in ['D', '1D'] or 'day' in str(freq).lower()
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_infer_frequency_weekly(sample_time_series_weekly):
     """Test frequency inference for weekly data."""
     freq = infer_frequency(sample_time_series_weekly.index)
     assert freq in ['W', 'W-SUN', 'W-MON'] or 'week' in str(freq).lower()
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_arima_forecaster_fit_predict(sample_time_series):
     """Test ARIMA forecaster fit and predict."""
     model = ARIMAForecaster()
@@ -68,7 +75,9 @@ def test_arima_forecaster_fit_predict(sample_time_series):
     assert len(result['forecast']) == 7
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_ets_forecaster_fit_predict(sample_time_series):
     """Test ETS forecaster fit and predict."""
     model = ETSForecaster()
@@ -82,7 +91,9 @@ def test_ets_forecaster_fit_predict(sample_time_series):
     assert len(result['forecast']) == 7
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_xgboost_forecaster_fit_predict(sample_time_series):
     """Test XGBoost forecaster fit and predict."""
     try:
@@ -99,7 +110,9 @@ def test_xgboost_forecaster_fit_predict(sample_time_series):
         pytest.skip("XGBoost not available")
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_model_manager_fit_all(sample_time_series):
     """Test ModelManager fit_all method."""
     manager = ModelManager()
@@ -110,7 +123,9 @@ def test_model_manager_fit_all(sample_time_series):
                for m in fitted_models.values())
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_model_manager_compare_models(sample_time_series):
     """Test model comparison."""
     manager = ModelManager()
@@ -121,7 +136,9 @@ def test_model_manager_compare_models(sample_time_series):
     assert len(metrics) == len(fitted_models)
 
 
-@pytest.mark.skipif(not MODELS_AVAILABLE, reason=f"Models not available: {IMPORT_ERROR}")
+@pytest.mark.skipif(
+    not MODELS_AVAILABLE, reason=("Models not available: " + IMPORT_ERROR) if IMPORT_ERROR else "Models not available"
+)
 def test_model_manager_select_best(sample_time_series):
     """Test best model selection."""
     manager = ModelManager()
