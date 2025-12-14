@@ -15,8 +15,9 @@ const apiClient = axios.create({
 export interface UploadResponse {
   job_id: string;
   columns: string[];
-  detected_time_column: string;
+  time_candidates?: Array<{ column: string; score: number }>;
   preview: any[];
+  file_url?: string | null;
 }
 
 export interface ForecastRequest {
@@ -33,6 +34,24 @@ export interface ForecastResponse {
   forecast_id: string;
   status: string;
   message?: string;
+}
+
+export interface JobInfo {
+  job_id: string;
+  file_name: string;
+  status: string;
+  columns: string[];
+  created_at: string;
+  forecast_id?: string;
+  target_column?: string;
+  model_used?: string;
+}
+
+export interface JobsListResponse {
+  jobs: JobInfo[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export const api = {
@@ -69,6 +88,18 @@ export const api = {
     
     getStatus: async (forecastId: string): Promise<any> => {
       const response = await apiClient.get(`/api/forecast/${forecastId}/status`);
+      return response.data;
+    },
+  },
+  
+  jobs: {
+    list: async (limit: number = 50, offset: number = 0): Promise<JobsListResponse> => {
+      const response = await apiClient.get<JobsListResponse>(`/api/jobs?limit=${limit}&offset=${offset}`);
+      return response.data;
+    },
+    
+    get: async (jobId: string): Promise<JobInfo> => {
+      const response = await apiClient.get<JobInfo>(`/api/jobs/${jobId}`);
       return response.data;
     },
   },
