@@ -11,7 +11,20 @@ import ForecastChart from '@/intfrontend/components/forecast/ForecastChart';
 import MetricsCard from '@/intfrontend/components/forecast/MetricsCard';
 import InsightsPanel from '@/intfrontend/components/forecast/InsightsPanel';
 import ExportButtons from '@/intfrontend/components/forecast/ExportButtons';
+import ModelComparisonTabs from '@/intfrontend/components/forecast/ModelComparisonTabs';
 import { toast } from 'sonner';
+
+interface ModelResult {
+  predictions: number[];
+  lower_bound?: number[] | null;
+  upper_bound?: number[] | null;
+  metrics: {
+    mae?: number;
+    rmse?: number;
+    mape?: number;
+    accuracy?: number;
+  };
+}
 
 interface ForecastResult {
   chart_data?: Array<{
@@ -30,6 +43,14 @@ interface ForecastResult {
   };
   model_used?: string;
   status?: string;
+  all_models?: Record<string, ModelResult>;
+  historical_data?: Array<{ date: string; actual: number | null; is_forecast: boolean }>;
+  insights?: string;
+  forecast_dates?: string[];
+  predictions?: number[];
+  lower_bound?: number[] | null;
+  upper_bound?: number[] | null;
+  chart_path?: string;
 }
 
 export default function Results() {
@@ -42,6 +63,15 @@ export default function Results() {
   const [targetColumn, setTargetColumn] = useState<string>('');
   const [insights, setInsights] = useState<string>('');
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [selectedModelData, setSelectedModelData] = useState<ModelResult | null>(null);
+  const [currentChartData, setCurrentChartData] = useState<Array<{
+    date: string;
+    actual?: number | null;
+    forecast?: number | null;
+    lower_bound?: number | null;
+    upper_bound?: number | null;
+    is_forecast?: boolean;
+  }>>([]);
   
   // Refs to track intervals/timeouts for cleanup
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -114,7 +144,7 @@ export default function Results() {
             
             const result = await api.forecast.get(id);
             
-            // Transform API response to chart_data format
+            // Build chart data: historical + forecast
             const chartData: Array<{
               date: string;
               actual?: number | null;
@@ -124,8 +154,18 @@ export default function Results() {
               is_forecast?: boolean;
             }> = [];
             
-            // Add historical data if available (we don't have it from API, so skip for now)
-            // Add forecast data
+            // Add historical data if available
+            if (result.historical_data && result.historical_data.length > 0) {
+              result.historical_data.forEach((point: any) => {
+                chartData.push({
+                  date: point.date,
+                  actual: point.actual,
+                  is_forecast: false
+                });
+              });
+            }
+            
+            // Add forecast data for best model
             if (result.predictions && result.forecast_dates) {
               result.forecast_dates.forEach((date: string, idx: number) => {
                 chartData.push({
@@ -138,11 +178,27 @@ export default function Results() {
               });
             }
             
+            // Set insights from API
+            if (result.insights) {
+              setInsights(result.insights);
+            }
+            
             // Set transformed result
             setForecastResult({
               ...result,
               chart_data: chartData
             });
+            
+            // Set initial chart data
+            setCurrentChartData(chartData);
+            
+            // Set selected model data (best model)
+            if (result.all_models && result.model_used) {
+              const bestModelData = result.all_models[result.model_used];
+              if (bestModelData) {
+                setSelectedModelData(bestModelData);
+              }
+            }
             
             // Get target column from localStorage or result
             const uploadData = localStorage.getItem('uploadData');
@@ -195,11 +251,14 @@ export default function Results() {
   };
 
   const handleExportCSV = () => {
-    if (!forecastResult?.chart_data || forecastResult.chart_data.length === 0) return;
+    if (!currentChartData || currentChartData.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
     
     const csv = [
       ['Date', 'Actual', 'Forecast', 'Lower Bound', 'Upper Bound'].join(','),
-      ...forecastResult.chart_data.map(row => 
+      ...currentChartData.map(row => 
         [
           row.date, 
           row.actual ?? '', 
@@ -214,14 +273,107 @@ export default function Results() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `forecast_${forecastId}.csv`;
+    a.download = `forecast_${forecastId || 'forecast'}_${selectedModelData ? Object.keys(forecastResult?.all_models || {}).find(k => forecastResult?.all_models?.[k] === selectedModelData) : forecastResult?.model_used || 'auto'}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
     toast.success('CSV exported successfully!');
   };
 
-  const handleExportChart = () => {
-    toast.info('Chart export will be available soon!');
+  const handleModelSelect = (modelName: string, modelData: ModelResult) => {
+    setSelectedModelData(modelData);
+    
+    // Rebuild chart data with selected model's predictions
+    if (!forecastResult) return;
+    
+    const newChartData: Array<{
+      date: string;
+      actual?: number | null;
+      forecast?: number | null;
+      lower_bound?: number | null;
+      upper_bound?: number | null;
+      is_forecast?: boolean;
+    }> = [];
+    
+    // Add historical data
+    if (forecastResult.historical_data && forecastResult.historical_data.length > 0) {
+      forecastResult.historical_data.forEach((point: any) => {
+        newChartData.push({
+          date: point.date,
+          actual: point.actual,
+          is_forecast: false
+        });
+      });
+    }
+    
+    // Add selected model's forecast data
+    if (forecastResult.forecast_dates && modelData.predictions) {
+      forecastResult.forecast_dates.forEach((date: string, idx: number) => {
+        newChartData.push({
+          date,
+          forecast: modelData.predictions[idx] || null,
+          lower_bound: modelData.lower_bound?.[idx] || null,
+          upper_bound: modelData.upper_bound?.[idx] || null,
+          is_forecast: true
+        });
+      });
+    }
+    
+    setCurrentChartData(newChartData);
+  };
+
+  const handleExportChart = async () => {
+    if (!currentChartData || currentChartData.length === 0) {
+      toast.error('No chart data to export');
+      return;
+    }
+    
+    try {
+      // Try to use html2canvas if available
+      let html2canvas: any = null;
+      try {
+        // Dynamic import with error handling - use eval to avoid TypeScript error
+        const html2canvasModule = await eval('import("html2canvas")').catch(() => null);
+        html2canvas = html2canvasModule?.default || null;
+      } catch {
+        // Module not available - will use fallback
+      }
+      
+      if (html2canvas) {
+        // Get the chart element
+        const chartElement = document.querySelector('.recharts-wrapper');
+        if (chartElement) {
+          const canvas = await html2canvas(chartElement as HTMLElement, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            logging: false
+          });
+          const url = canvas.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `forecast_chart_${forecastId || 'forecast'}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          toast.success('Chart exported successfully!');
+          return;
+        }
+      }
+      
+      // Fallback: try to download from backend if chart_path exists
+      if (forecastResult?.chart_path) {
+        // Construct backend URL for chart
+        const chartUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/forecast/${forecastId}/chart`;
+        window.open(chartUrl, '_blank');
+        toast.success('Chart download started!');
+      } else {
+        toast.info('Chart export will use backend-generated image. For client-side export, install html2canvas.');
+        // Still try CSV as fallback
+        handleExportCSV();
+      }
+    } catch (error: any) {
+      console.error('Chart export error:', error);
+      toast.error('Chart export failed. Try CSV export instead.');
+    }
   };
 
   const handleExportReport = () => {
@@ -306,15 +458,29 @@ export default function Results() {
           </div>
         </div>
 
+        {/* Model Comparison Tabs */}
+        {forecastResult.all_models && Object.keys(forecastResult.all_models).length > 1 && (
+          <div className="mb-8">
+            <ModelComparisonTabs
+              allModels={forecastResult.all_models}
+              bestModel={forecastResult.model_used || 'auto'}
+              forecastDates={forecastResult.forecast_dates || []}
+              historicalData={forecastResult.historical_data || []}
+              onModelSelect={handleModelSelect}
+              targetColumn={targetColumn}
+            />
+          </div>
+        )}
+
         {/* Metrics */}
         <div className="mb-8">
-          <MetricsCard metrics={forecastResult.metrics} />
+          <MetricsCard metrics={selectedModelData?.metrics || forecastResult.metrics} />
         </div>
 
         {/* Chart */}
-        {forecastResult.chart_data && forecastResult.chart_data.length > 0 && (
+        {currentChartData && currentChartData.length > 0 && (
           <div className="mb-8">
-            <ForecastChart data={forecastResult.chart_data} targetColumn={targetColumn} />
+            <ForecastChart data={currentChartData} targetColumn={targetColumn} />
           </div>
         )}
 
