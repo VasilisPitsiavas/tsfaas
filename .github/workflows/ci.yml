@@ -71,6 +71,7 @@ jobs:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/forecastly_test
         REDIS_HOST: localhost
         REDIS_PORT: 6379
+        PYTHONPATH: ${{ github.workspace }}/backend
       run: |
         pytest ../tests/ --cov=app --cov-report=xml --cov-report=term
     
