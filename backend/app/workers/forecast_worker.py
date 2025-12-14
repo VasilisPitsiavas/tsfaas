@@ -1,5 +1,5 @@
 """Background worker for processing forecast jobs with full export support."""
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import os
 import json
 import pandas as pd
@@ -69,6 +69,16 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
         
         # Fit models
         model_manager = ModelManager()
+        horizon = forecast_config.get("horizon", 14)
+        
+        # Generate forecast dates (same for all models)
+        last_date = df.index[-1]
+        freq = pd.infer_freq(df.index) or 'D'
+        forecast_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=horizon, freq=freq)
+        
+        # Store all models' predictions and metrics
+        all_models_results = {}
+        best_model_name = None
         
         if model_choice == "auto":
             # Fit all models and select best
@@ -83,6 +93,21 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             
             metrics = model_manager.compare_models(fitted_models)
             best_model_name = model_manager.select_best_model(metrics)
+            
+            # Generate predictions for ALL models
+            for model_name, model in fitted_models.items():
+                try:
+                    pred_result = model.predict(horizon=horizon, return_conf_int=True)
+                    all_models_results[model_name] = {
+                        "predictions": pred_result['forecast'].tolist() if hasattr(pred_result['forecast'], 'tolist') else list(pred_result['forecast']),
+                        "lower_bound": pred_result.get('lower').tolist() if pred_result.get('lower') is not None and hasattr(pred_result.get('lower'), 'tolist') else (list(pred_result.get('lower')) if pred_result.get('lower') is not None else None),
+                        "upper_bound": pred_result.get('upper').tolist() if pred_result.get('upper') is not None and hasattr(pred_result.get('upper'), 'tolist') else (list(pred_result.get('upper')) if pred_result.get('upper') is not None else None),
+                        "metrics": metrics.get(model_name, {})
+                    }
+                except Exception as e:
+                    warnings.warn(f"Failed to generate predictions for {model_name}: {e}")
+                    continue
+            
             best_model = fitted_models[best_model_name]
         else:
             # Fit specific model
@@ -95,19 +120,21 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             best_model_name = model_choice
             best_model = model
             metrics = {best_model_name: model.get_metrics()}
+            
+            # Generate predictions for the selected model
+            pred_result = best_model.predict(horizon=horizon, return_conf_int=True)
+            all_models_results[best_model_name] = {
+                "predictions": pred_result['forecast'].tolist() if hasattr(pred_result['forecast'], 'tolist') else list(pred_result['forecast']),
+                "lower_bound": pred_result.get('lower').tolist() if pred_result.get('lower') is not None and hasattr(pred_result.get('lower'), 'tolist') else (list(pred_result.get('lower')) if pred_result.get('lower') is not None else None),
+                "upper_bound": pred_result.get('upper').tolist() if pred_result.get('upper') is not None and hasattr(pred_result.get('upper'), 'tolist') else (list(pred_result.get('upper')) if pred_result.get('upper') is not None else None),
+                "metrics": metrics.get(best_model_name, {})
+            }
         
-        # Generate predictions with confidence intervals
-        horizon = forecast_config.get("horizon", 14)
-        pred_result = best_model.predict(horizon=horizon, return_conf_int=True)
-        
-        predictions = pred_result['forecast']
-        lower_bound = pred_result.get('lower')
-        upper_bound = pred_result.get('upper')
-        
-        # Generate forecast dates
-        last_date = df.index[-1]
-        freq = pd.infer_freq(df.index) or 'D'
-        forecast_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=horizon, freq=freq)
+        # Use best model's predictions for the main forecast
+        best_model_result = all_models_results[best_model_name]
+        predictions = np.array(best_model_result['predictions'])
+        lower_bound = np.array(best_model_result['lower_bound']) if best_model_result['lower_bound'] else None
+        upper_bound = np.array(best_model_result['upper_bound']) if best_model_result['upper_bound'] else None
         
         # Save model artifact
         model_path = os.path.join(job_folder, f"model_{best_model_name}.pkl")
@@ -145,6 +172,26 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             except Exception as e:
                 warnings.warn(f"Failed to generate chart: {e}")
         
+        # Prepare historical data for charting
+        # Note: after preprocessing, target column is renamed to "y"
+        historical_data = []
+        for idx, (date, value) in enumerate(df["y"].items()):
+            historical_data.append({
+                "date": date.isoformat() if hasattr(date, 'isoformat') else str(date),
+                "actual": float(value) if pd.notna(value) else None,
+                "is_forecast": False
+            })
+        
+        # Generate insights
+        insights = _generate_insights(
+            historical=df["y"],
+            forecast_df=forecast_df,
+            metrics=metrics,
+            best_model=best_model_name,
+            confidence_lower=lower_bound,
+            confidence_upper=upper_bound
+        )
+        
         # Prepare results
         results = {
             "forecast_id": forecast_id,
@@ -155,6 +202,9 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             "lower_bound": lower_bound.tolist() if lower_bound is not None and hasattr(lower_bound, 'tolist') else (list(lower_bound) if lower_bound is not None else None),
             "upper_bound": upper_bound.tolist() if upper_bound is not None and hasattr(upper_bound, 'tolist') else (list(upper_bound) if upper_bound is not None else None),
             "metrics": metrics,
+            "all_models": all_models_results,  # All models' predictions and metrics
+            "historical_data": historical_data,  # Historical data for charting
+            "insights": insights,  # Plain-English insights
             "historical_data_points": len(df),
             "forecast_horizon": horizon,
             "csv_path": csv_path,
@@ -256,3 +306,121 @@ def _generate_forecast_chart(
     # Save chart
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
+
+
+def _generate_insights(
+    historical: pd.Series,
+    forecast_df: pd.DataFrame,
+    metrics: Dict[str, Dict[str, float]],
+    best_model: str,
+    confidence_lower: Optional[np.ndarray] = None,
+    confidence_upper: Optional[np.ndarray] = None
+) -> str:
+    """
+    Generate plain-English insights about the forecast.
+    
+    Args:
+        historical: Historical time series data
+        forecast_df: Forecast DataFrame
+        metrics: Dictionary of model metrics
+        best_model: Name of best performing model
+        confidence_lower: Lower confidence bounds
+        confidence_upper: Upper confidence bounds
+        
+    Returns:
+        Plain-English insights string
+    """
+    insights_parts = []
+    
+    # 1. Trend Direction
+    if len(historical) >= 2:
+        recent_trend = historical.iloc[-10:].mean() - historical.iloc[-20:-10].mean() if len(historical) >= 20 else historical.iloc[-1] - historical.iloc[0]
+        forecast_trend = forecast_df['forecast'].iloc[-1] - forecast_df['forecast'].iloc[0] if len(forecast_df) > 1 else 0
+        
+        if recent_trend > 0 and forecast_trend > 0:
+            trend_desc = "upward trend"
+        elif recent_trend < 0 and forecast_trend < 0:
+            trend_desc = "downward trend"
+        elif forecast_trend > 0:
+            trend_desc = "recovery to upward trend"
+        elif forecast_trend < 0:
+            trend_desc = "shift to downward trend"
+        else:
+            trend_desc = "stable trend"
+        
+        insights_parts.append(f"📈 **Trend Direction:** The data shows a {trend_desc}. The forecast continues this pattern.")
+    
+    # 2. Seasonality Strength
+    if len(historical) >= 14:
+        # Simple seasonality detection using autocorrelation
+        try:
+            # Use pandas autocorr to detect seasonality
+            autocorr_values = []
+            max_lag = min(14, len(historical) // 2)
+            for lag in range(1, max_lag + 1):
+                try:
+                    corr = historical.autocorr(lag=lag)
+                    if pd.notna(corr):
+                        autocorr_values.append(abs(corr))
+                except:
+                    continue
+            
+            max_autocorr = max(autocorr_values) if autocorr_values else 0
+            
+            if max_autocorr > 0.5:
+                seasonality_desc = "strong seasonal patterns"
+            elif max_autocorr > 0.3:
+                seasonality_desc = "moderate seasonal patterns"
+            else:
+                seasonality_desc = "weak or no seasonal patterns"
+            
+            insights_parts.append(f"🔄 **Seasonality:** {seasonality_desc.capitalize()} detected in the historical data.")
+        except Exception:
+            # Fallback: simple variance-based detection
+            if len(historical) >= 7:
+                weekly_variance = historical.iloc[-7:].std() / historical.mean() if historical.mean() != 0 else 0
+                if weekly_variance > 0.2:
+                    insights_parts.append(f"🔄 **Seasonality:** Moderate seasonal patterns detected in the data.")
+                else:
+                    insights_parts.append(f"🔄 **Seasonality:** Weak or no seasonal patterns detected.")
+    
+    # 3. Forecast Confidence Width
+    if confidence_lower is not None and confidence_upper is not None:
+        avg_width = np.mean(confidence_upper - confidence_lower)
+        avg_value = np.mean(forecast_df['forecast'])
+        relative_width = (avg_width / avg_value * 100) if avg_value != 0 else 0
+        
+        if relative_width < 10:
+            confidence_desc = "high confidence"
+        elif relative_width < 25:
+            confidence_desc = "moderate confidence"
+        else:
+            confidence_desc = "lower confidence"
+        
+        insights_parts.append(f"🎯 **Forecast Confidence:** {confidence_desc.capitalize()} with an average confidence interval width of {relative_width:.1f}%.")
+    
+    # 4. Model Reliability Note
+    best_metrics = metrics.get(best_model, {})
+    rmse = best_metrics.get('rmse', 0)
+    mae = best_metrics.get('mae', 0)
+    
+    if rmse > 0:
+        avg_value = historical.mean()
+        relative_error = (rmse / avg_value * 100) if avg_value != 0 else 0
+        
+        if relative_error < 5:
+            reliability_desc = "highly reliable"
+        elif relative_error < 15:
+            reliability_desc = "reliable"
+        else:
+            reliability_desc = "moderately reliable"
+        
+        model_display_name = best_model.upper() if best_model else "Selected"
+        insights_parts.append(f"✅ **Model Reliability:** The {model_display_name} model shows {reliability_desc} performance with a {relative_error:.1f}% average error.")
+    
+    # Add model comparison note if multiple models
+    if len(metrics) > 1:
+        model_names = ", ".join([m.upper() for m in metrics.keys()])
+        insights_parts.append(f"🔬 **Model Comparison:** Compared {model_names}. {best_model.upper()} was selected as the best performing model.")
+    
+    return "\n\n".join(insights_parts) if insights_parts else "Forecast analysis completed successfully."
