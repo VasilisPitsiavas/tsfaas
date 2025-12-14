@@ -9,8 +9,12 @@ exclude =
     build,
     dist,
     *.egg-info
+# Ignore specific error codes
+# E203: whitespace before ':'
+# E501: line too long (handled by black)
+# W503: line break before binary operator
 ignore =
-    E203,  # whitespace before ':'
-    E501,  # line too long (handled by black)
-    W503   # line break before binary operator
+    E203,
+    E501,
+    W503
 
