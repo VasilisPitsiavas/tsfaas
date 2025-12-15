@@ -19,6 +19,8 @@ services:
       - STORAGE_BUCKET=forecastly-uploads
       - CORS_ORIGINS=http://localhost:3000
       - DATA_DIR=/app/data
+      - SUPABASE_URL=${SUPABASE_URL:-https://jtarenapymmkqmmrjoih.supabase.co}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
     volumes:
       - ./backend:/app
       - backend_data:/app/data
@@ -46,6 +48,8 @@ services:
       - STORAGE_BUCKET=forecastly-uploads
       - DATA_DIR=/app/data
       - JOB_TIMEOUT=3600
+      - SUPABASE_URL=${SUPABASE_URL:-https://jtarenapymmkqmmrjoih.supabase.co}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
     volumes:
       - ./backend:/app
       - backend_data:/app/data
@@ -68,6 +72,8 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-https://jtarenapymmkqmmrjoih.supabase.co}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     # Removed volume mounts for production - they override the built files
     # For development, uncomment these lines:
     # volumes:

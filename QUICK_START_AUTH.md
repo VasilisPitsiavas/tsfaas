@@ -22,7 +22,43 @@
 
 ## 🚀 Running the Application
 
-### Option 1: Local Development (Recommended for testing auth)
+### Option 1: Docker (Recommended - Full Stack) 🐳
+
+**Best for:** Production-like environment, full stack testing, all services included
+
+1. **Create `.env` file** (if not exists):
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your Supabase credentials
+   ```
+
+2. **Start everything:**
+   ```bash
+   docker-compose up --build
+   ```
+
+   This starts:
+   - ✅ Frontend: http://localhost:3000
+   - ✅ Backend: http://localhost:8000
+   - ✅ PostgreSQL (database)
+   - ✅ Redis (job queue)
+   - ✅ MinIO (S3 storage)
+   - ✅ Worker (background jobs)
+
+3. **Stop:**
+   ```bash
+   docker-compose down
+   ```
+
+**Advantages:**
+- All services included (no manual setup)
+- Production-like environment
+- Isolated dependencies
+- Easy to reset/clean
+
+### Option 2: Local Development (For Quick Testing)
+
+**Best for:** Quick iteration, debugging, development
 
 #### Frontend:
 ```bash
@@ -42,20 +78,14 @@ uvicorn main:app --reload
 ```
 
 **Note:** For full functionality, you'll also need:
-- Redis (for job queue): `brew install redis && redis-server` (or use Docker)
+- Redis (for job queue): `brew install redis && redis-server` (or use Docker just for Redis)
 - PostgreSQL (optional): Only if using database features
 - MinIO (optional): Only if using S3 storage
 
-### Option 2: Docker (Full Stack)
-
+**Or use the quick start script:**
 ```bash
-docker-compose up --build
+./start-dev.sh
 ```
-
-This starts:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
-- PostgreSQL, Redis, MinIO, Worker
 
 ## 🔐 Testing Authentication
 
