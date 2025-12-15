@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Layout from '@/intfrontend/Layout';
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: 'Forecastly - Time Series Forecasting as a Service',
@@ -18,6 +19,7 @@ export default function RootLayout({
         <Layout>
           {children}
         </Layout>
+        <Toaster position="top-right" />
       </body>
     </html>
   );

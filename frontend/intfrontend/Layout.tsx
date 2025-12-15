@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createPageUrl, getPageNameFromPath } from '@/lib/navigation';
 import { TrendingUp, LayoutDashboard, Upload, Home } from 'lucide-react';
+import AuthButton from '@/components/auth/AuthButton';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -56,6 +57,9 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 );
               })}
+              <div className="ml-4 pl-4 border-l border-gray-200">
+                <AuthButton />
+              </div>
             </div>
           </div>
         </div>

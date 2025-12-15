@@ -1,6 +1,7 @@
 # backend/app/api/upload.py
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Header
 from fastapi.responses import JSONResponse
+from typing import Optional
 import uuid
 import os
 import json
@@ -8,6 +9,7 @@ from typing import Dict, Any, List
 from ..ml.preprocessing import analyze_csv_preview
 from ..storage.storage import save_file, get_presigned_url_if_needed
 from ..core.config import DATA_DIR
+from ..utils.auth import require_auth
 
 router = APIRouter()
 
@@ -16,10 +18,18 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 
 @router.post("")
-async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
+async def upload_csv(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+) -> JSONResponse:
     """
     Accept CSV upload, store it, return job_id, detected columns and preview rows.
+    Requires authentication.
     """
+    # Require authentication
+    user = await require_auth(authorization)
+    user_id = user["id"]
+
     filename = file.filename
     if not filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported for now.")
@@ -43,6 +53,7 @@ async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
     # minimal job metadata (you can replace with DB later)
     metadata = {
         "job_id": job_id,
+        "user_id": user_id,  # Attach user_id to job
         "original_filename": filename,
         "file_path": file_path,
         "columns": analysis.get("columns", []),

@@ -34,6 +34,10 @@ class Settings(BaseSettings):
 
     # Database settings (Postgres - for future use)
     DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/forecastly"
+    
+    # Supabase settings
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
 
     # Storage settings (MinIO/S3)
     STORAGE_ENDPOINT: str = "http://minio:9000"

@@ -2,6 +2,7 @@
  * API client for backend communication.
  */
 import axios from 'axios';
+import { createClient } from '@/lib/supabase/client';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -10,6 +11,20 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Add auth token to requests
+apiClient.interceptors.request.use(async (config) => {
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
+  }
+  
+  return config;
 });
 
 export interface UploadResponse {

@@ -1,7 +1,7 @@
 """Jobs listing API endpoint."""
 
-from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
+from fastapi import APIRouter, HTTPException, Header
+from typing import List, Dict, Any, Optional
 import os
 import json
 import re
@@ -9,6 +9,7 @@ from datetime import datetime
 
 from app.core.config import DATA_DIR
 from app.queue.job_queue import get_job_status
+from app.utils.auth import require_auth
 
 router = APIRouter()
 
@@ -21,17 +22,26 @@ def sanitize_job_id(job_id: str) -> str:
 
 
 @router.get("")
-async def list_jobs(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+async def list_jobs(
+    limit: int = 50,
+    offset: int = 0,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
-    List all forecast jobs.
+    List forecast jobs for the authenticated user.
 
     Args:
         limit: Maximum number of jobs to return (default: 50, max: 100)
         offset: Number of jobs to skip (for pagination)
+        authorization: Authorization header with Bearer token
 
     Returns:
-        List of jobs with metadata and status
+        List of jobs with metadata and status (user-scoped)
     """
+    # Require authentication
+    user = await require_auth(authorization)
+    user_id = user["id"]
+
     if limit > 100:
         limit = 100
     if limit < 1:
@@ -63,6 +73,11 @@ async def list_jobs(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
         try:
             with open(metadata_path, "r") as f:
                 metadata = json.load(f)
+
+            # Filter by user_id - only show jobs belonging to the authenticated user
+            job_user_id = metadata.get("user_id")
+            if job_user_id != user_id:
+                continue
 
             job_id = metadata.get("job_id", folder_name)
 
@@ -134,16 +149,25 @@ async def list_jobs(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str) -> Dict[str, Any]:
+async def get_job(
+    job_id: str,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
     Get detailed information about a specific job.
+    Requires authentication and verifies job ownership.
 
     Args:
         job_id: Job identifier
+        authorization: Authorization header with Bearer token
 
     Returns:
         Job information including metadata and status
     """
+    # Require authentication
+    user = await require_auth(authorization)
+    user_id = user["id"]
+
     sanitized_id = sanitize_job_id(job_id)
 
     if sanitized_id != job_id:
@@ -158,6 +182,11 @@ async def get_job(job_id: str) -> Dict[str, Any]:
     try:
         with open(metadata_path, "r") as f:
             metadata = json.load(f)
+
+        # Verify job ownership
+        job_user_id = metadata.get("user_id")
+        if job_user_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
 
         # Get status and forecast info
         results_path = os.path.join(job_folder, "results.json")

@@ -10,7 +10,7 @@ import json
 
 from app.queue.job_queue import enqueue_forecast_job, get_job_status, get_job_result
 from app.core.config import DATA_DIR
-
+from app.utils.auth import require_auth
 
 router = APIRouter()
 
@@ -101,18 +101,27 @@ class ForecastResponse(BaseModel):
 
 
 @router.post("", response_model=ForecastResponse)
-async def create_forecast(request: ForecastRequest) -> ForecastResponse:
+async def create_forecast(
+    request: ForecastRequest,
+    authorization: Optional[str] = Header(None)
+) -> ForecastResponse:
     """
     Create a new forecast job.
+    Requires authentication and verifies job ownership.
 
     Args:
         request: Forecast configuration
+        authorization: Authorization header with Bearer token
 
     Returns:
         Forecast job information
     """
+    # Require authentication
+    user = await require_auth(authorization)
+    user_id = user["id"]
+
     try:
-        # Load metadata to validate columns exist
+        # Load metadata to validate columns exist and verify ownership
         job_folder = os.path.join(DATA_DIR, request.job_id)
         metadata_path = os.path.join(job_folder, "metadata.json")
 
@@ -120,6 +129,11 @@ async def create_forecast(request: ForecastRequest) -> ForecastResponse:
 
         with open(metadata_path, "r") as f:
             metadata = json.load(f)
+
+        # Verify job ownership
+        job_user_id = metadata.get("user_id")
+        if job_user_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
 
         available_columns = metadata.get("columns", [])
 
@@ -175,16 +189,25 @@ async def create_forecast(request: ForecastRequest) -> ForecastResponse:
 
 
 @router.get("/{forecast_id}")
-async def get_forecast(forecast_id: str) -> Dict[str, Any]:
+async def get_forecast(
+    forecast_id: str,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
     Get forecast results.
+    Requires authentication and verifies job ownership.
 
     Args:
         forecast_id: Unique identifier for the forecast (RQ Job ID)
+        authorization: Authorization header with Bearer token
 
     Returns:
         Forecast results including predictions, metrics, and charts
     """
+    # Require authentication
+    user = await require_auth(authorization)
+    user_id = user["id"]
+
     # Sanitize forecast_id
     forecast_id = sanitize_job_id(forecast_id)
 
@@ -202,6 +225,15 @@ async def get_forecast(forecast_id: str) -> Dict[str, Any]:
             if os.path.exists(DATA_DIR):
                 for folder in os.listdir(DATA_DIR):
                     job_folder = os.path.join(DATA_DIR, folder)
+                    metadata_path_check = os.path.join(job_folder, "metadata.json")
+                    
+                    # Check ownership first
+                    if os.path.exists(metadata_path_check):
+                        with open(metadata_path_check, "r") as f:
+                            metadata_check = json.load(f)
+                            if metadata_check.get("user_id") != user_id:
+                                continue  # Skip jobs not owned by user
+                    
                     result_file = os.path.join(job_folder, "results.json")
                     if os.path.exists(result_file):
                         with open(result_file, "r") as f:
@@ -229,16 +261,25 @@ async def get_forecast(forecast_id: str) -> Dict[str, Any]:
 
 
 @router.get("/{forecast_id}/status")
-async def get_forecast_status(forecast_id: str) -> Dict[str, Any]:
+async def get_forecast_status(
+    forecast_id: str,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
     Get forecast job status.
+    Requires authentication and verifies job ownership.
 
     Args:
         forecast_id: Unique identifier for the forecast (RQ Job ID)
+        authorization: Authorization header with Bearer token
 
     Returns:
         Status information
     """
+    # Require authentication
+    user = await require_auth(authorization)
+    user_id = user["id"]
+
     forecast_id = sanitize_job_id(forecast_id)
 
     status_info = get_job_status(forecast_id)
