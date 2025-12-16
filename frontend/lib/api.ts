@@ -15,17 +15,49 @@ const apiClient = axios.create({
 
 // Add auth token to requests
 apiClient.interceptors.request.use(async (config) => {
-  const supabase = createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  
-  if (session?.access_token) {
-    config.headers.Authorization = `Bearer ${session.access_token}`;
+  try {
+    const supabase = createClient();
+    // Use getSession() which reads from cookies/localStorage
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('[API] Error getting session:', error);
+    }
+    
+    if (session?.access_token) {
+      config.headers.Authorization = `Bearer ${session.access_token}`;
+      console.log('[API] Added auth token to request:', config.url);
+    } else {
+      console.warn('[API] No session found for request:', config.url);
+      // Don't make the request if no session - let the 401 handler deal with it
+    }
+  } catch (error) {
+    console.error('[API] Error in auth interceptor:', error);
   }
   
   return config;
 });
+
+// Handle 401 errors - redirect to login
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Clear any stale session
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      
+      // Redirect to home/login page
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface UploadResponse {
   job_id: string;
