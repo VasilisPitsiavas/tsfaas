@@ -17,6 +17,12 @@ router = APIRouter()
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
+@router.options("")
+async def upload_options():
+    """Handle CORS preflight for upload endpoint."""
+    return {"status": "ok"}
+
+
 @router.post("")
 async def upload_csv(
     file: UploadFile = File(...),

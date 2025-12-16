@@ -15,12 +15,18 @@ app = FastAPI(
 )
 
 # CORS middleware
+# Parse CORS_ORIGINS - handle both string and list formats
+cors_origins = settings.CORS_ORIGINS
+if isinstance(cors_origins, str):
+    cors_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include API router
