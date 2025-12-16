@@ -1,6 +1,6 @@
 """Authentication utilities for Supabase JWT verification."""
 
-from fastapi import HTTPException, Header
+from fastapi import HTTPException
 from typing import Optional
 from supabase import create_client, Client
 from app.core.config import settings
@@ -18,7 +18,7 @@ def get_supabase_client() -> Client:
 
 
 async def get_user_from_token(
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str]
 ) -> Optional[dict]:
     """
     Extract user from Authorization header (Bearer token).
@@ -72,7 +72,7 @@ async def get_user_from_token(
 
 
 async def require_auth(
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str]
 ) -> dict:
     """
     Require authentication - raise 401 if not authenticated.
