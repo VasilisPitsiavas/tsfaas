@@ -20,7 +20,16 @@ os.makedirs(DATA_DIR, exist_ok=True)
 @router.options("")
 async def upload_options():
     """Handle CORS preflight for upload endpoint."""
-    return {"status": "ok"}
+    from fastapi.responses import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "authorization, content-type",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 
 @router.post("")
