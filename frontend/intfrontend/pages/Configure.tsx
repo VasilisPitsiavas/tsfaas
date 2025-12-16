@@ -141,7 +141,7 @@ export default function Configure() {
               <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center">
                 ✓
               </div>
-              <span className="font-medium text-gray-600">Upload</span>
+              <span className="font-medium text-gray-700">Upload</span>
             </div>
             <div className="w-16 h-1 bg-blue-600"></div>
             <div className="flex items-center gap-2">
@@ -152,10 +152,10 @@ export default function Configure() {
             </div>
             <div className="w-16 h-1 bg-gray-300"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center font-semibold">
+              <div className="w-8 h-8 bg-gray-300 text-gray-700 rounded-full flex items-center justify-center font-semibold">
                 3
               </div>
-              <span className="font-medium text-gray-500">Results</span>
+              <span className="font-medium text-gray-700">Results</span>
             </div>
           </div>
         </div>
@@ -163,9 +163,9 @@ export default function Configure() {
         {/* Configuration Card */}
         <Card className="shadow-xl mb-8">
           <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 border-b">
-            <CardTitle className="text-2xl">Forecast Configuration</CardTitle>
-            <p className="text-sm text-gray-600 mt-2">
-              Job ID: <span className="font-semibold">{jobId}</span>
+            <CardTitle className="text-2xl text-gray-900">Forecast Configuration</CardTitle>
+            <p className="text-sm text-gray-700 mt-2">
+              Job ID: <span className="font-semibold text-gray-900">{jobId}</span>
             </p>
           </CardHeader>
           <CardContent className="pt-8">

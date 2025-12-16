@@ -49,7 +49,7 @@ export default function ColumnSelector({
             <option key={col} value={col}>{col}</option>
           ))}
         </Select>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           The column containing your timestamps or dates
         </p>
       </div>
@@ -66,7 +66,7 @@ export default function ColumnSelector({
             <option key={col} value={col}>{col}</option>
           ))}
         </Select>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           The metric you want to forecast (e.g., sales, revenue)
         </p>
       </div>
@@ -98,7 +98,7 @@ export default function ColumnSelector({
               );
             })}
         </div>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Click to select additional variables that might influence your forecast
         </p>
       </div>
@@ -117,7 +117,7 @@ export default function ColumnSelector({
           onChange={(e) => onHorizonChange(parseInt(e.target.value) || 14)}
           className="h-12"
         />
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Number of periods to forecast ahead (1-365)
         </p>
       </div>
@@ -134,7 +134,7 @@ export default function ColumnSelector({
           <option value="ets">ETS</option>
           <option value="xgboost">XGBoost</option>
         </Select>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Choose a specific model or let the system select the best one automatically
         </p>
       </div>
