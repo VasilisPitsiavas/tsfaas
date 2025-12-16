@@ -42,16 +42,31 @@ async def get_user_from_token(
         
         # Verify token with Supabase
         supabase = get_supabase_client()
-        user_response = supabase.auth.get_user(jwt=token)
+        # Supabase Python client get_user is synchronous, but we're in an async function
+        # Run it in executor to avoid blocking the event loop
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            user_response = await loop.run_in_executor(
+                None, 
+                lambda: supabase.auth.get_user(jwt=token)
+            )
+        except RuntimeError:
+            # If no event loop, create one
+            user_response = supabase.auth.get_user(jwt=token)
         
-        if user_response.user:
+        if user_response and user_response.user:
             return {
                 "id": user_response.user.id,
                 "email": user_response.user.email,
             }
         
         return None
-    except Exception:
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error verifying token: {str(e)}", exc_info=True)
         # If token verification fails, return None
         return None
 
