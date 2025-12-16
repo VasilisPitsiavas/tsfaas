@@ -17,25 +17,6 @@ router = APIRouter()
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
-@router.options("")
-async def upload_options(
-    authorization: Optional[str] = Header(None)
-):
-    """Handle CORS preflight for upload endpoint."""
-    from fastapi.responses import Response
-    # CORS middleware should handle this, but explicit handler ensures it works
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "http://localhost:3000",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "authorization, content-type",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        }
-    )
-
-
 @router.post("")
 async def upload_csv(
     file: UploadFile = File(...),
