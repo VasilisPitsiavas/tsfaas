@@ -96,10 +96,27 @@ export default function Upload() {
       }, 300);
     } catch (error: any) {
       console.error('Upload error details:', error);
-      const errorMessage = error.response?.data?.detail 
-        || error.response?.data?.message 
-        || error.message 
-        || 'Unknown error occurred';
+      console.error('Error response:', error.response);
+      console.error('Error request:', error.request);
+      console.error('Error config:', error.config);
+      
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error.response) {
+        // Server responded with error status
+        errorMessage = error.response.data?.detail 
+          || error.response.data?.message 
+          || `Server error: ${error.response.status} ${error.response.statusText}`;
+        console.error('Server error response:', error.response.status, error.response.data);
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = `Network error: Could not reach server at ${error.config?.url || 'backend'}`;
+        console.error('Network error - no response received:', error.request);
+      } else {
+        // Something else happened
+        errorMessage = error.message || 'Unknown error occurred';
+        console.error('Request setup error:', error.message);
+      }
       
       toast.error(`Error uploading file: ${errorMessage}`);
       setIsProcessing(false);

@@ -214,6 +214,29 @@ async def get_forecast(
     # Try to get result from RQ
     result = get_job_result(forecast_id)
 
+    # Verify ownership if result came from cache
+    if result is not None:
+        # Extract job_id from result to verify ownership
+        result_job_id = result.get("job_id")
+        if result_job_id:
+            # Verify job ownership
+            job_folder = os.path.join(DATA_DIR, result_job_id)
+            metadata_path = os.path.join(job_folder, "metadata.json")
+            
+            if os.path.exists(metadata_path):
+                with open(metadata_path, "r") as f:
+                    metadata = json.load(f)
+                    job_user_id = metadata.get("user_id")
+                    if job_user_id != user_id:
+                        raise HTTPException(status_code=403, detail="Access denied")
+            else:
+                # Metadata not found - this shouldn't happen, but be safe
+                raise HTTPException(status_code=404, detail="Job metadata not found")
+        else:
+            # Result doesn't contain job_id - this shouldn't happen for valid results
+            # But to be safe, we can't verify ownership, so reject it
+            raise HTTPException(status_code=500, detail="Invalid result format: missing job_id")
+
     if result is None:
         # Check if results exist in file system (fallback)
         # This happens if job completed but RQ result expired

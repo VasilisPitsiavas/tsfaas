@@ -85,16 +85,25 @@ async def upload_csv(
 
 
 @router.get("/{job_id}")
-async def get_upload_info(job_id: str) -> Dict[str, Any]:
+async def get_upload_info(
+    job_id: str,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
     Get information about an uploaded CSV file.
+    Requires authentication and verifies job ownership.
 
     Args:
         job_id: Unique identifier for the upload
+        authorization: Authorization header with Bearer token
 
     Returns:
         Upload information including columns and preview
     """
+    # Require authentication
+    user = await require_auth(authorization)
+    user_id = user["id"]
+
     import re
 
     # Sanitize job_id
@@ -108,6 +117,11 @@ async def get_upload_info(job_id: str) -> Dict[str, Any]:
 
     with open(metadata_path, "r") as f:
         metadata = json.load(f)
+
+    # Verify job ownership
+    job_user_id = metadata.get("user_id")
+    if job_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     return {
         "job_id": sanitized_id,
