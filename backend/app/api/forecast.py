@@ -1,6 +1,6 @@
 """Forecast API endpoints with validation and security."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, Field, validator
 from typing import Dict, List, Any, Optional
 import os
