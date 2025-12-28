@@ -6,7 +6,7 @@ import { createPageUrl } from '@/lib/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/intfrontend/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/intfrontend/components/ui/card';
-import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, Loader2, Sparkles, CheckCircle } from 'lucide-react';
 import ColumnSelector from '@/intfrontend/components/forecast/ColumnSelector';
 import { toast } from 'sonner';
 
@@ -115,60 +115,68 @@ export default function Configure() {
 
   if (isLoading || !uploadData) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-purple-50">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-10 h-10 animate-spin text-blue-600 mx-auto" />
+          <p className="text-gray-600 font-medium">Loading configuration...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50 py-12">
-      <div className="container mx-auto px-4 max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-12 space-y-4">
+          <h1 className="text-5xl font-bold text-gray-900 tracking-tight">
             Configure Your Forecast
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Select columns and parameters for your forecast
           </p>
         </div>
 
         {/* Progress Steps */}
         <div className="mb-12">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center">
-                ✓
+              <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg">
+                <CheckCircle className="w-5 h-5" />
               </div>
-              <span className="font-medium text-gray-700">Upload</span>
+              <span className="font-semibold text-gray-900 hidden sm:inline">Upload</span>
             </div>
-            <div className="w-16 h-1 bg-blue-600"></div>
+            <div className="w-12 sm:w-20 h-1 bg-blue-600 rounded-full"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold">
+              <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold shadow-lg">
                 2
               </div>
-              <span className="font-medium text-gray-900">Configure</span>
+              <span className="font-bold text-gray-900 hidden sm:inline">Configure</span>
             </div>
-            <div className="w-16 h-1 bg-gray-300"></div>
+            <div className="w-12 sm:w-20 h-1 bg-gray-300 rounded-full"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-300 text-gray-700 rounded-full flex items-center justify-center font-semibold">
+              <div className="w-10 h-10 bg-gray-300 text-gray-700 rounded-full flex items-center justify-center font-semibold">
                 3
               </div>
-              <span className="font-medium text-gray-700">Results</span>
+              <span className="font-medium text-gray-500 hidden sm:inline">Results</span>
             </div>
           </div>
         </div>
 
         {/* Configuration Card */}
-        <Card className="shadow-xl mb-8">
-          <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 border-b">
-            <CardTitle className="text-2xl text-gray-900">Forecast Configuration</CardTitle>
-            <p className="text-sm text-gray-700 mt-2">
-              Job ID: <span className="font-semibold text-gray-900">{jobId}</span>
+        <Card className="shadow-xl mb-10 border-0 bg-white">
+          <CardHeader className="bg-gradient-to-r from-purple-50 via-blue-50 to-purple-50 border-b border-gray-200 pb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Sparkles className="w-5 h-5 text-purple-600" />
+              </div>
+              <CardTitle className="text-2xl font-bold text-gray-900">Forecast Configuration</CardTitle>
+            </div>
+            <p className="text-sm text-gray-600 font-medium">
+              Job ID: <span className="font-semibold text-gray-900 font-mono">{jobId?.substring(0, 12)}...</span>
             </p>
           </CardHeader>
-          <CardContent className="pt-8">
+          <CardContent className="pt-8 pb-8">
             <ColumnSelector
               columns={uploadData.columns}
               timeColumn={timeColumn}
@@ -186,11 +194,12 @@ export default function Configure() {
         </Card>
 
         {/* Action Buttons */}
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
           <Button
             variant="outline"
             onClick={() => router.push(createPageUrl('Upload'))}
             disabled={isProcessing}
+            className="border-gray-300 hover:bg-gray-50 transition-colors duration-200"
           >
             Back to Upload
           </Button>
@@ -198,7 +207,7 @@ export default function Configure() {
             size="lg"
             onClick={handleRunForecast}
             disabled={isProcessing || !timeColumn || !targetColumn}
-            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 gap-2 px-8"
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 gap-2 px-8 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? (
               <>

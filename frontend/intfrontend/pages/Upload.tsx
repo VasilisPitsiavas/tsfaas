@@ -124,46 +124,46 @@ export default function Upload() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12">
-      <div className="container mx-auto px-4 max-w-5xl">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-12 space-y-4">
+          <h1 className="text-5xl font-bold text-gray-900 tracking-tight">
             Upload Your Time Series Data
           </h1>
-          <p className="text-lg text-gray-600">
-            Upload a CSV file containing your time-series data to get started
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Upload a CSV file containing your time-series data to get started with forecasting
           </p>
         </div>
 
         {/* Progress Steps */}
         <div className="mb-12">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold">
+              <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold shadow-lg">
                 1
               </div>
-              <span className="font-medium text-gray-900">Upload</span>
+              <span className="font-semibold text-gray-900 hidden sm:inline">Upload</span>
             </div>
-            <div className="w-16 h-1 bg-gray-300"></div>
+            <div className="w-12 sm:w-20 h-1 bg-blue-600 rounded-full"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center font-semibold">
+              <div className="w-10 h-10 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center font-semibold">
                 2
               </div>
-              <span className="font-medium text-gray-500">Configure</span>
+              <span className="font-medium text-gray-500 hidden sm:inline">Configure</span>
             </div>
-            <div className="w-16 h-1 bg-gray-300"></div>
+            <div className="w-12 sm:w-20 h-1 bg-gray-300 rounded-full"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center font-semibold">
+              <div className="w-10 h-10 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center font-semibold">
                 3
               </div>
-              <span className="font-medium text-gray-500">Results</span>
+              <span className="font-medium text-gray-500 hidden sm:inline">Results</span>
             </div>
           </div>
         </div>
 
         {/* File Upload */}
-        <div className="mb-8">
+        <div className="mb-10">
           <FileUploader 
             onFileSelect={handleFileSelect}
             selectedFile={selectedFile}
@@ -176,9 +176,19 @@ export default function Upload() {
           />
         </div>
 
+        {/* Processing State */}
+        {isProcessing && !parsedData && (
+          <div className="mb-10">
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+              <p className="text-gray-600 font-medium">Processing your file...</p>
+            </div>
+          </div>
+        )}
+
         {/* Data Preview */}
         {parsedData && (
-          <div className="mb-8">
+          <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DataPreview 
               data={parsedData}
               columns={columns}
@@ -189,17 +199,17 @@ export default function Upload() {
 
         {/* Continue Button */}
         {parsedData && (
-          <div className="flex justify-end">
+          <div className="flex justify-end animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Button
               size="lg"
               onClick={handleContinue}
               disabled={isProcessing}
-              className="bg-blue-600 hover:bg-blue-700 gap-2 px-8"
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 gap-2 px-8"
             >
               {isProcessing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing...
+                  Uploading...
                 </>
               ) : (
                 <>

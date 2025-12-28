@@ -75,3 +75,51 @@ select option {
   background-size: 200% auto;
   animation: gradient 3s ease infinite;
 }
+
+/* Smooth transitions and animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-bottom {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+.fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+.slide-in-from-bottom-4 {
+  animation: slide-in-from-bottom 0.5s ease-out;
+}
+
+/* Smooth hover transitions */
+.transition-smooth {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}

@@ -15,25 +15,28 @@ export default function ExportButtons({ onExportCSV, onExportChart, onExportRepo
     <div className="flex flex-wrap gap-3">
       <Button 
         onClick={onExportCSV}
-        className="bg-blue-600 hover:bg-blue-700 gap-2"
+        size="lg"
+        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg transition-all duration-200 gap-2"
       >
-        <Download className="w-4 h-4" />
+        <Download className="w-5 h-5" />
         Export CSV
       </Button>
       <Button 
         onClick={onExportChart}
         variant="outline"
-        className="gap-2"
+        size="lg"
+        className="border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 gap-2"
       >
-        <FileDown className="w-4 h-4" />
+        <FileDown className="w-5 h-5" />
         Export Chart
       </Button>
       <Button 
         onClick={onExportReport}
         variant="outline"
-        className="gap-2"
+        size="lg"
+        className="border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 gap-2"
       >
-        <FileText className="w-4 h-4" />
+        <FileText className="w-5 h-5" />
         Export Report
       </Button>
     </div>

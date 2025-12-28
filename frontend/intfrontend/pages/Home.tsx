@@ -77,9 +77,9 @@ export default function Home() {
       <div className="container mx-auto px-4 py-24 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Powerful Features,{' '}
+            Powerful Forecasting,{' '}
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Simple Interface
+              Simple Experience
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">

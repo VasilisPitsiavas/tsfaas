@@ -6,7 +6,7 @@ import { createPageUrl } from '@/lib/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/intfrontend/components/ui/button';
 import { Badge } from '@/intfrontend/components/ui/badge';
-import { Loader2, Home, Upload } from 'lucide-react';
+import { Loader2, Home, Upload, XCircle, CheckCircle } from 'lucide-react';
 import ForecastChart from '@/intfrontend/components/forecast/ForecastChart';
 import MetricsCard from '@/intfrontend/components/forecast/MetricsCard';
 import InsightsPanel from '@/intfrontend/components/forecast/InsightsPanel';
@@ -382,12 +382,22 @@ export default function Results() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-lg text-gray-600">
-            Generating your forecast... This may take a few moments.
-          </p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-green-50">
+        <div className="text-center space-y-6 max-w-md px-4">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full">
+            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-gray-900">Generating your forecast</h2>
+            <p className="text-lg text-gray-600">
+              This may take a few moments. Please wait...
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-4">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
         </div>
       </div>
     );
@@ -395,10 +405,23 @@ export default function Results() {
 
   if (!forecastResult) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50">
-        <div className="text-center">
-          <p className="text-lg text-gray-600">No forecast results available.</p>
-          <Button onClick={() => router.push(createPageUrl('Upload'))} className="mt-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-green-50">
+        <div className="text-center space-y-6 max-w-md px-4">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full">
+            <XCircle className="w-10 h-10 text-gray-400" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-gray-900">No forecast results available</h2>
+            <p className="text-gray-600">
+              We couldn't find the forecast results. Please try creating a new forecast.
+            </p>
+          </div>
+          <Button 
+            onClick={() => router.push(createPageUrl('Upload'))} 
+            size="lg"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 gap-2"
+          >
+            <Upload className="w-5 h-5" />
             Start New Forecast
           </Button>
         </div>
@@ -407,22 +430,27 @@ export default function Results() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-green-50 py-12">
-      <div className="container mx-auto px-4 max-w-7xl">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-green-50 py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <div className="mb-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="space-y-2">
+              <h1 className="text-5xl font-bold text-gray-900 tracking-tight">
                 Forecast Results
               </h1>
-              <p className="text-gray-600">
-                Job ID: <span className="font-semibold">{jobId?.substring(0, 8)}...</span> • 
-                Target: <span className="font-semibold">{targetColumn || 'N/A'}</span>
-              </p>
+              <div className="flex flex-wrap items-center gap-3 text-gray-600">
+                <p className="font-medium">
+                  Job ID: <span className="font-semibold text-gray-900 font-mono">{jobId?.substring(0, 12)}...</span>
+                </p>
+                <span className="hidden sm:inline">•</span>
+                <p className="font-medium">
+                  Target: <span className="font-semibold text-gray-900">{targetColumn || 'N/A'}</span>
+                </p>
+              </div>
             </div>
-            <Badge className="bg-green-100 text-green-700 border border-green-200 px-4 py-2 text-sm">
-              {forecastResult.model_used?.toUpperCase() || 'AUTO'}
+            <Badge className="bg-green-100 text-green-700 border-2 border-green-200 px-5 py-2.5 text-sm font-bold shadow-sm w-fit">
+              {forecastResult.model_used?.toUpperCase() || 'AUTO'} MODEL
             </Badge>
           </div>
           <ExportButtons 
@@ -434,33 +462,33 @@ export default function Results() {
 
         {/* Progress Steps */}
         <div className="mb-12">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center">
-                ✓
+              <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg">
+                <CheckCircle className="w-5 h-5" />
               </div>
-              <span className="font-medium text-gray-600">Upload</span>
+              <span className="font-semibold text-gray-900 hidden sm:inline">Upload</span>
             </div>
-            <div className="w-16 h-1 bg-green-600"></div>
+            <div className="w-12 sm:w-20 h-1 bg-green-600 rounded-full"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center">
-                ✓
+              <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg">
+                <CheckCircle className="w-5 h-5" />
               </div>
-              <span className="font-medium text-gray-600">Configure</span>
+              <span className="font-semibold text-gray-900 hidden sm:inline">Configure</span>
             </div>
-            <div className="w-16 h-1 bg-green-600"></div>
+            <div className="w-12 sm:w-20 h-1 bg-green-600 rounded-full"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center">
-                ✓
+              <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg">
+                <CheckCircle className="w-5 h-5" />
               </div>
-              <span className="font-medium text-gray-900">Results</span>
+              <span className="font-bold text-gray-900 hidden sm:inline">Results</span>
             </div>
           </div>
         </div>
 
         {/* Model Comparison Tabs */}
         {forecastResult.all_models && Object.keys(forecastResult.all_models).length > 1 && (
-          <div className="mb-8">
+          <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <ModelComparisonTabs
               allModels={forecastResult.all_models}
               bestModel={forecastResult.model_used || 'auto'}
@@ -473,37 +501,39 @@ export default function Results() {
         )}
 
         {/* Metrics */}
-        <div className="mb-8">
+        <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <MetricsCard metrics={selectedModelData?.metrics || forecastResult.metrics} />
         </div>
 
         {/* Chart */}
         {currentChartData && currentChartData.length > 0 && (
-          <div className="mb-8">
+          <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <ForecastChart data={currentChartData} targetColumn={targetColumn} />
           </div>
         )}
 
         {/* Insights */}
-        <div className="mb-8">
+        <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <InsightsPanel insights={insights} isLoading={isLoadingInsights} />
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4 justify-center">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-6">
           <Button
             variant="outline"
             onClick={() => router.push(createPageUrl('Home'))}
-            className="gap-2"
+            size="lg"
+            className="border-gray-300 hover:bg-gray-50 transition-colors duration-200 gap-2"
           >
-            <Home className="w-4 h-4" />
+            <Home className="w-5 h-5" />
             Back to Home
           </Button>
           <Button
             onClick={() => router.push(createPageUrl('Upload'))}
-            className="bg-blue-600 hover:bg-blue-700 gap-2"
+            size="lg"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 gap-2"
           >
-            <Upload className="w-4 h-4" />
+            <Upload className="w-5 h-5" />
             New Forecast
           </Button>
         </div>

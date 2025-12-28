@@ -49,15 +49,15 @@ export default function FileUploader({ onFileSelect, selectedFile, onClear }: Fi
 
   if (selectedFile) {
     return (
-      <div className="border-2 border-green-200 bg-green-50 rounded-xl p-8">
+      <div className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-8 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
-              <FileSpreadsheet className="w-7 h-7 text-green-600" />
+            <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center shadow-md">
+              <FileSpreadsheet className="w-8 h-8 text-green-600" />
             </div>
             <div>
-              <p className="font-semibold text-lg text-gray-900">{selectedFile.name}</p>
-              <p className="text-sm text-gray-500">
+              <p className="font-bold text-lg text-gray-900 mb-1">{selectedFile.name}</p>
+              <p className="text-sm text-gray-600 font-medium">
                 {(selectedFile.size / 1024).toFixed(2)} KB
               </p>
             </div>
@@ -66,7 +66,7 @@ export default function FileUploader({ onFileSelect, selectedFile, onClear }: Fi
             variant="ghost"
             size="icon"
             onClick={onClear}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors duration-200 rounded-lg"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -82,10 +82,10 @@ export default function FileUploader({ onFileSelect, selectedFile, onClear }: Fi
       onDragOver={handleDrag}
       onDrop={handleDrop}
       className={cn(
-        "border-2 border-dashed rounded-xl p-12 transition-all cursor-pointer",
+        "border-2 border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer bg-white shadow-sm",
         isDragging 
-          ? "border-blue-500 bg-blue-50" 
-          : "border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100"
+          ? "border-blue-500 bg-blue-50 scale-[1.02] shadow-lg" 
+          : "border-gray-300 hover:border-blue-400 hover:bg-blue-50/50 hover:shadow-md"
       )}
     >
       <input
@@ -95,22 +95,28 @@ export default function FileUploader({ onFileSelect, selectedFile, onClear }: Fi
         className="hidden"
         id="file-upload"
       />
-      <label htmlFor="file-upload" className="cursor-pointer">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center">
-            <Upload className="w-8 h-8 text-blue-600" />
+      <label htmlFor="file-upload" className="cursor-pointer w-full">
+        <div className="flex flex-col items-center gap-5">
+          <div className={cn(
+            "w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-300",
+            isDragging ? "bg-blue-200 scale-110" : "bg-blue-100"
+          )}>
+            <Upload className={cn(
+              "w-10 h-10 text-blue-600 transition-transform duration-300",
+              isDragging && "scale-110"
+            )} />
           </div>
-          <div className="text-center">
-            <p className="text-lg font-semibold text-gray-900 mb-1">
+          <div className="text-center space-y-1">
+            <p className="text-xl font-bold text-gray-900">
               Drop your CSV file here
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-600 font-medium">
               or click to browse
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
             <FileSpreadsheet className="w-4 h-4" />
-            <span>Supports CSV files only</span>
+            <span className="font-medium">CSV files only</span>
           </div>
         </div>
       </label>

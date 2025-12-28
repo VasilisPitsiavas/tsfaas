@@ -50,23 +50,26 @@ export default function MetricsCard({ metrics }: MetricsCardProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {metricItems.map((metric, idx) => {
         const Icon = metric.icon;
         return (
-          <Card key={idx} className="shadow-md">
+          <Card 
+            key={idx} 
+            className="shadow-lg hover:shadow-xl transition-shadow duration-200 border-0 bg-white"
+          >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-gray-600">
+                <CardTitle className="text-xs font-bold text-gray-600 uppercase tracking-wide">
                   {metric.label}
                 </CardTitle>
-                <div className={`p-2 rounded-lg ${metric.bgColor}`}>
-                  <Icon className={`w-4 h-4 ${metric.color}`} />
+                <div className={`p-2.5 rounded-xl ${metric.bgColor} shadow-sm`}>
+                  <Icon className={`w-5 h-5 ${metric.color}`} />
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-gray-900">{metric.value}</p>
+              <p className="text-3xl font-bold text-gray-900">{metric.value}</p>
             </CardContent>
           </Card>
         );
