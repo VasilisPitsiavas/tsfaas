@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # Supabase settings
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+    
+    # Stripe settings (TEST MODE ONLY)
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRICE_ID: str = ""
+    FRONTEND_URL: str = "http://localhost:3000"  # For Stripe redirect URLs
 
     # Storage settings (MinIO/S3)
     STORAGE_ENDPOINT: str = "http://minio:9000"

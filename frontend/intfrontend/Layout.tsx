@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createPageUrl, getPageNameFromPath } from '@/lib/navigation';
-import { TrendingUp, LayoutDashboard, Upload, Home } from 'lucide-react';
+import { TrendingUp, LayoutDashboard, Upload, Home, CreditCard } from 'lucide-react';
 import AuthButton from '@/components/auth/AuthButton';
 
 interface LayoutProps {
@@ -18,7 +18,8 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { name: 'Home', path: 'Home', icon: Home },
     { name: 'Dashboard', path: 'Dashboard', icon: LayoutDashboard },
-    { name: 'Upload', path: 'Upload', icon: Upload }
+    { name: 'Upload', path: 'Upload', icon: Upload },
+    { name: 'Pricing', path: '/pricing', icon: CreditCard, isExternal: true }
   ];
 
   return (
@@ -41,11 +42,14 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPageName === item.path;
+                const href = item.isExternal ? item.path : createPageUrl(item.path);
+                const isActive = item.isExternal 
+                  ? pathname === item.path 
+                  : currentPageName === item.path;
                 return (
                   <Link
                     key={item.path}
-                    href={createPageUrl(item.path)}
+                    href={href}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                       isActive
                         ? 'bg-blue-50 text-blue-600 font-semibold'
@@ -80,7 +84,7 @@ export default function Layout({ children }: LayoutProps) {
               <span className="text-gray-400">• Time Series Forecasting as a Service</span>
             </div>
             <div className="text-gray-400 text-sm">
-              © 2024 Forecastly. Built with precision and care.
+              © 2025 Forecastly. Built with precision and care.
             </div>
           </div>
         </div>

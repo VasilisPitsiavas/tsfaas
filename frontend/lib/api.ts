@@ -112,6 +112,16 @@ export interface JobsListResponse {
   offset: number;
 }
 
+export interface BillingProfile {
+  is_pro: boolean;
+  user_id: string;
+}
+
+export interface CheckoutSessionResponse {
+  checkout_url: string;
+  session_id: string;
+}
+
 export const api = {
   upload: {
     post: async (file: File): Promise<UploadResponse> => {
@@ -158,6 +168,18 @@ export const api = {
     
     get: async (jobId: string): Promise<JobInfo> => {
       const response = await apiClient.get<JobInfo>(`/api/jobs/${jobId}`);
+      return response.data;
+    },
+  },
+  
+  billing: {
+    createCheckoutSession: async (): Promise<CheckoutSessionResponse> => {
+      const response = await apiClient.post<CheckoutSessionResponse>('/api/billing/create-checkout-session');
+      return response.data;
+    },
+    
+    getProfile: async (): Promise<BillingProfile> => {
+      const response = await apiClient.get<BillingProfile>('/api/billing/profile');
       return response.data;
     },
   },

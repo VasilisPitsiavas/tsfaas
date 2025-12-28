@@ -2,10 +2,11 @@
 
 from fastapi import APIRouter
 
-from app.api import upload, forecast, jobs
+from app.api import upload, forecast, jobs, billing
 
 router = APIRouter()
 
 router.include_router(upload.router, prefix="/upload", tags=["upload"])
 router.include_router(forecast.router, prefix="/forecast", tags=["forecast"])
 router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
+router.include_router(billing.router, prefix="/billing", tags=["billing"])

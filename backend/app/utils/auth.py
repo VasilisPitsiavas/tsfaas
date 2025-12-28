@@ -96,3 +96,67 @@ async def require_auth(
         )
     
     return user
+
+
+async def get_user_profile(user_id: str) -> Optional[dict]:
+    """
+    Get user profile from Supabase profiles table.
+    
+    Args:
+        user_id: User UUID
+    
+    Returns:
+        Profile dictionary with 'is_pro' status, or None if not found
+    """
+    try:
+        supabase = get_supabase_client()
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: supabase.table("profiles").select("is_pro").eq("id", user_id).execute()
+            )
+        except RuntimeError:
+            response = supabase.table("profiles").select("is_pro").eq("id", user_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            return {
+                "is_pro": response.data[0].get("is_pro", False)
+            }
+        return None
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching user profile: {str(e)}", exc_info=True)
+        return None
+
+
+async def require_pro(
+    authorization: Optional[str]
+) -> dict:
+    """
+    Require Pro subscription - raise 403 if not Pro.
+    
+    Args:
+        authorization: Authorization header value
+    
+    Returns:
+        User dictionary with 'id', 'email', and 'is_pro' status
+    
+    Raises:
+        HTTPException: 401 if not authenticated, 403 if not Pro
+    """
+    user = await require_auth(authorization)
+    
+    # Get profile to check is_pro status
+    profile = await get_user_profile(user_id=user["id"])
+    
+    if not profile or not profile.get("is_pro", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Pro subscription required",
+        )
+    
+    user["is_pro"] = True
+    return user
