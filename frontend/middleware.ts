@@ -16,9 +16,12 @@ export async function middleware(request: NextRequest) {
   );
 
   if (isProtectedPath && !user) {
-    // Redirect to home/login if not authenticated
+    // Redirect to home with login prompt if not authenticated
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/';
+    redirectUrl.pathname = '/home';
+    redirectUrl.searchParams.set('login', 'true');
+    // Store the original path they tried to access
+    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname);
     return NextResponse.redirect(redirectUrl);
   }
 

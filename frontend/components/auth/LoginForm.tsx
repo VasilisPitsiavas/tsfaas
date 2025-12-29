@@ -10,7 +10,11 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Loader2, Sparkles, ArrowRight } from 'lucide-react';
 
-export default function LoginForm() {
+interface LoginFormProps {
+  onLoginSuccess?: () => void;
+}
+
+export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -44,8 +48,14 @@ export default function LoginForm() {
         if (error) throw error;
 
         toast.success('Logged in successfully!');
-        router.push('/dashboard');
-        router.refresh();
+        
+        // Call callback if provided, otherwise redirect to dashboard
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        } else {
+          router.push('/dashboard');
+          router.refresh();
+        }
       }
     } catch (error: any) {
       toast.error(error.message || 'An error occurred');
