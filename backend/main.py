@@ -20,7 +20,7 @@ app.add_middleware(
     allow_origins=["https://tsfaas-forecastly.vercel.app"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Include API router AFTER CORS middleware
