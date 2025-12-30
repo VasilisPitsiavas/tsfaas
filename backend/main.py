@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router
+from app.core.config import settings
 
 # Create FastAPI app instance (ONLY ONE instance)
 app = FastAPI(
@@ -14,17 +15,20 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Apply CORS middleware IMMEDIATELY after creating the app (before any routers)
+# CORS middleware - Apply IMMEDIATELY after creating the app (before any routers)
+# Parse CORS_ORIGINS - handle both string and list formats
+cors_origins = settings.CORS_ORIGINS
+if isinstance(cors_origins, str):
+    cors_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://tsfaas-forecastly.vercel.app",
-        "http://localhost:3000"
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=3600,  # Cache preflight for 1 hour
 )
 
 # Include API router AFTER CORS middleware
