@@ -51,3 +51,13 @@ async def debug_routes():
                 "name": getattr(route, "name", "unknown")
             })
     return {"routes": routes, "total": len(routes)}
+
+
+@app.get("/test-cors")
+async def test_cors():
+    """Test endpoint to verify CORS headers are being sent."""
+    return {
+        "status": "ok",
+        "cors": "configured",
+        "allowed_origin": "https://tsfaas-forecastly.vercel.app"
+    }
