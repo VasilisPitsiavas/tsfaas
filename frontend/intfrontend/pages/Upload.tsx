@@ -127,11 +127,11 @@ export default function Upload() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 py-12">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
         {/* Header */}
-        <div className="text-center mb-12 space-y-4">
-          <h1 className="text-5xl font-bold text-gray-900 tracking-tight">
+        <div className="text-center mb-8 sm:mb-12 space-y-3 sm:space-y-4 px-4">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 tracking-tight">
             Upload Your Time Series Data
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
             Upload a CSV file containing your time-series data to get started with forecasting
           </p>
         </div>

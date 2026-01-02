@@ -24,31 +24,31 @@ export default function Home() {
             <Sparkles className="w-4 h-4 animate-pulse" />
             <span>Time Series Forecasting as a Service</span>
           </div>
-          <h1 className="text-6xl md:text-7xl font-extrabold text-gray-900 mb-8 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-gray-900 mb-6 sm:mb-8 leading-tight px-2">
             Transform Your Data Into
             <br />
             <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-gradient">
               Future Insights
             </span>
           </h1>
-          <p className="text-xl md:text-2xl text-gray-600 mb-12 leading-relaxed max-w-3xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 mb-8 sm:mb-12 leading-relaxed max-w-3xl mx-auto px-4">
             Upload your time-series data and get professional forecasts in minutes. 
             <br className="hidden md:block" />
             <span className="text-gray-500">No coding. No statistics knowledge. Just instant, reliable predictions.</span>
           </p>
-          <div className="flex gap-4 justify-center flex-wrap mb-16">
-            <Link href={createPageUrl('Upload')}>
-              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-lg px-10 py-7 gap-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                <Upload className="w-6 h-6" />
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch sm:items-center mb-12 sm:mb-16 px-4">
+            <Link href={createPageUrl('Upload')} className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-7 gap-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
                 Start Forecasting
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
             </Link>
-            <Link href={createPageUrl('Dashboard')}>
+            <Link href={createPageUrl('Dashboard')} className="w-full sm:w-auto">
               <Button 
                 size="lg" 
                 variant="outline" 
-                className="border-2 border-gray-300 bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white hover:text-gray-900 hover:border-gray-400 text-lg px-10 py-7 shadow-lg hover:shadow-xl transition-all duration-300"
+                className="w-full sm:w-auto border-2 border-gray-300 bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white hover:text-gray-900 hover:border-gray-400 text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-7 shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 View Dashboard
               </Button>
@@ -56,18 +56,18 @@ export default function Home() {
           </div>
           
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-2xl mx-auto px-4">
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 mb-2">99.9%</div>
-              <div className="text-sm text-gray-600">Uptime</div>
+              <div className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">99.9%</div>
+              <div className="text-xs sm:text-sm text-gray-600">Uptime</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 mb-2">&lt;1min</div>
-              <div className="text-sm text-gray-600">Forecast Time</div>
+              <div className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">&lt;1min</div>
+              <div className="text-xs sm:text-sm text-gray-600">Forecast Time</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 mb-2">1000+</div>
-              <div className="text-sm text-gray-600">Forecasts</div>
+              <div className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">1000+</div>
+              <div className="text-xs sm:text-sm text-gray-600">Forecasts</div>
             </div>
           </div>
         </div>
@@ -75,14 +75,14 @@ export default function Home() {
 
       {/* Features Section */}
       <div className="container mx-auto px-4 py-24 relative z-10">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+        <div className="text-center mb-12 sm:mb-16 px-4">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4 sm:mb-6">
             Powerful Forecasting,{' '}
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Simple Experience
             </span>
           </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto">
             Everything you need for professional time-series forecasting, all in one place
           </p>
         </div>
@@ -171,25 +171,25 @@ export default function Home() {
               <CheckCircle2 className="w-5 h-5" />
               <span className="text-sm font-semibold">Trusted by data teams worldwide</span>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6 px-4">
               Ready to forecast the future?
             </h2>
-            <p className="text-xl md:text-2xl mb-10 text-blue-50 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-8 sm:mb-10 text-blue-50 max-w-2xl mx-auto px-4">
               Join thousands of businesses making data-driven decisions with Forecastly
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link href={createPageUrl('Upload')}>
-                <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 text-lg px-10 py-7 gap-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                  <Upload className="w-6 h-6" />
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch sm:items-center px-4">
+              <Link href={createPageUrl('Upload')} className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto bg-white text-blue-600 hover:bg-blue-50 text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-7 gap-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                  <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
                   Get Started Free
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
               </Link>
-              <Link href={createPageUrl('Dashboard')}>
+              <Link href={createPageUrl('Dashboard')} className="w-full sm:w-auto">
                 <Button 
                   size="lg" 
                   variant="outline" 
-                  className="border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 text-lg px-10 py-7 shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="w-full sm:w-auto border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-7 shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   View Examples
                 </Button>

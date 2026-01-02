@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createPageUrl, getPageNameFromPath } from '@/lib/navigation';
-import { TrendingUp, LayoutDashboard, Upload, Home, CreditCard } from 'lucide-react';
+import { TrendingUp, LayoutDashboard, Upload, Home, CreditCard, Menu, X } from 'lucide-react';
 import AuthButton from '@/components/auth/AuthButton';
 
 interface LayoutProps {
@@ -14,6 +14,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname();
   const currentPageName = getPageNameFromPath(pathname);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { name: 'Home', path: 'Home', icon: Home },
@@ -30,16 +31,16 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href={createPageUrl('Home')} className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-white" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Forecastly
               </span>
             </Link>
 
-            {/* Navigation Links */}
-            <div className="flex items-center gap-1">
+            {/* Desktop Navigation Links */}
+            <div className="hidden md:flex items-center gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const href = item.isExternal ? item.path : createPageUrl(item.path);
@@ -65,7 +66,53 @@ export default function Layout({ children }: LayoutProps) {
                 <AuthButton />
               </div>
             </div>
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden flex items-center gap-2">
+              <AuthButton />
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-gray-200 py-4">
+              <div className="flex flex-col gap-2">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const href = item.isExternal ? item.path : createPageUrl(item.path);
+                  const isActive = item.isExternal 
+                    ? pathname === item.path 
+                    : currentPageName === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      href={href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-600 font-semibold'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
