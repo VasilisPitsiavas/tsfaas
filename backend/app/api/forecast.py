@@ -165,6 +165,7 @@ async def create_forecast(
             "horizon": request.horizon,
             "model": request.model,
             "forecast_id": None,  # Will be set by queue
+            "user_id": user_id,  # Include user_id for ownership verification
         }
 
         # Enqueue job
@@ -224,14 +225,40 @@ async def get_forecast(
             metadata_path = os.path.join(job_folder, "metadata.json")
             
             if os.path.exists(metadata_path):
-                with open(metadata_path, "r") as f:
-                    metadata = json.load(f)
-                    job_user_id = metadata.get("user_id")
-                    if job_user_id != user_id:
-                        raise HTTPException(status_code=403, detail="Access denied")
+                try:
+                    with open(metadata_path, "r") as f:
+                        metadata = json.load(f)
+                        job_user_id = metadata.get("user_id")
+                        if job_user_id != user_id:
+                            raise HTTPException(status_code=403, detail="Access denied")
+                except Exception as e:
+                    # If metadata exists but can't be read, try fallback verification
+                    pass
             else:
-                # Metadata not found - this shouldn't happen, but be safe
-                raise HTTPException(status_code=404, detail="Job metadata not found")
+                # Metadata not found - try to verify ownership from results.json if it exists
+                # This handles the case where worker and backend are in separate containers
+                results_path = os.path.join(job_folder, "results.json")
+                if os.path.exists(results_path):
+                    try:
+                        with open(results_path, "r") as f:
+                            results_data = json.load(f)
+                            # If results.json has user_id, verify it
+                            results_user_id = results_data.get("user_id")
+                            if results_user_id:
+                                if results_user_id != user_id:
+                                    raise HTTPException(status_code=403, detail="Access denied")
+                                # Ownership verified from results.json
+                            else:
+                                # No user_id in results - can't verify ownership safely
+                                raise HTTPException(status_code=404, detail="Job metadata not found")
+                    except HTTPException:
+                        raise
+                    except Exception:
+                        # If we can't read results.json, fall through to error
+                        raise HTTPException(status_code=404, detail="Job metadata not found")
+                else:
+                    # No metadata and no results - can't verify ownership
+                    raise HTTPException(status_code=404, detail="Job metadata not found")
         else:
             # Result doesn't contain job_id - this shouldn't happen for valid results
             # But to be safe, we can't verify ownership, so reject it
@@ -248,20 +275,29 @@ async def get_forecast(
             if os.path.exists(DATA_DIR):
                 for folder in os.listdir(DATA_DIR):
                     job_folder = os.path.join(DATA_DIR, folder)
-                    metadata_path_check = os.path.join(job_folder, "metadata.json")
-                    
-                    # Check ownership first
-                    if os.path.exists(metadata_path_check):
-                        with open(metadata_path_check, "r") as f:
-                            metadata_check = json.load(f)
-                            if metadata_check.get("user_id") != user_id:
-                                continue  # Skip jobs not owned by user
                     
                     result_file = os.path.join(job_folder, "results.json")
                     if os.path.exists(result_file):
                         with open(result_file, "r") as f:
                             data = json.load(f)
                             if data.get("forecast_id") == forecast_id:
+                                # Verify ownership from results.json (preferred) or metadata.json
+                                results_user_id = data.get("user_id")
+                                if results_user_id:
+                                    if results_user_id != user_id:
+                                        raise HTTPException(status_code=403, detail="Access denied")
+                                else:
+                                    # Fallback to metadata.json if user_id not in results
+                                    metadata_path_check = os.path.join(job_folder, "metadata.json")
+                                    if os.path.exists(metadata_path_check):
+                                        with open(metadata_path_check, "r") as f:
+                                            metadata_check = json.load(f)
+                                            if metadata_check.get("user_id") != user_id:
+                                                raise HTTPException(status_code=403, detail="Access denied")
+                                    else:
+                                        # Can't verify ownership - skip this result
+                                        continue
+                                
                                 results_path = result_file
                                 result = data
                                 break

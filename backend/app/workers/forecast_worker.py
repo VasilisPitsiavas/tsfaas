@@ -240,10 +240,23 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             confidence_upper=upper_bound,
         )
 
+        # Get user_id from forecast_config (if available) or from metadata
+        user_id = forecast_config.get("user_id")
+        if not user_id:
+            # Try to load from metadata.json as fallback
+            try:
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, "r") as f:
+                        metadata = json.load(f)
+                        user_id = metadata.get("user_id")
+            except Exception:
+                pass
+
         # Prepare results
         results = {
             "forecast_id": forecast_id,
             "job_id": job_id,
+            "user_id": user_id,  # Include user_id for ownership verification
             "model_used": best_model_name,
             "predictions": (
                 predictions.tolist() if hasattr(predictions, "tolist") else list(predictions)
