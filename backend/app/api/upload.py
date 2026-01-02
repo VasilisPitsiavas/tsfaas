@@ -3,18 +3,15 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Header
 from fastapi.responses import JSONResponse
 from typing import Optional
 import uuid
+import tempfile
 import os
 import json
 from typing import Dict, Any, List
 from ..ml.preprocessing import analyze_csv_preview
-from ..storage.storage import save_file, get_presigned_url_if_needed
-from ..core.config import DATA_DIR
-from ..utils.auth import require_auth
+from ..storage.supabase_storage import upload_to_supabase_storage, get_public_url
+from ..utils.auth import require_auth, get_supabase_client
 
 router = APIRouter()
-
-# Ensure DATA_DIR exists
-os.makedirs(DATA_DIR, exist_ok=True)
 
 
 @router.post("")
@@ -23,7 +20,7 @@ async def upload_csv(
     authorization: Optional[str] = Header(None)
 ) -> JSONResponse:
     """
-    Accept CSV upload, store it, return job_id, detected columns and preview rows.
+    Accept CSV upload, store it in Supabase Storage, create job record, return job_id, detected columns and preview rows.
     Requires authentication.
     """
     # Require authentication
@@ -35,50 +32,65 @@ async def upload_csv(
         raise HTTPException(status_code=400, detail="Only CSV files are supported for now.")
 
     job_id = str(uuid.uuid4())
-    # create a job-specific folder
-    job_folder = os.path.join(DATA_DIR, job_id)
-    os.makedirs(job_folder, exist_ok=True)
-    file_path = os.path.join(job_folder, filename)
-
-    # save file bytes - delegate to storage layer (supports S3 / local)
+    
+    # Read file bytes
     file_bytes = await file.read()
-    save_file(file_path, file_bytes)  # storage.save_file must accept (path, bytes)
-
-    # run light-weight analysis on a preview of the CSV
+    
+    # Upload to Supabase Storage: {user_id}/{job_id}/input.csv
+    storage_path = f"{user_id}/{job_id}/input.csv"
     try:
-        analysis = analyze_csv_preview(file_path, nrows=10)
+        upload_to_supabase_storage(file_bytes, storage_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload file to storage: {str(e)}")
+
+    # Run light-weight analysis on a preview of the CSV
+    # Save to temp file for analysis
+    temp_file = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='wb', suffix='.csv', delete=False) as tmp:
+            tmp.write(file_bytes)
+            temp_file = tmp.name
+        
+        analysis = analyze_csv_preview(temp_file, nrows=10)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to analyze CSV: {str(e)}")
+    finally:
+        # Clean up temp file
+        if temp_file and os.path.exists(temp_file):
+            os.unlink(temp_file)
 
-    # minimal job metadata (you can replace with DB later)
-    metadata = {
-        "job_id": job_id,
-        "user_id": user_id,  # Attach user_id to job
-        "original_filename": filename,
-        "file_path": file_path,
-        "columns": analysis.get("columns", []),
-        "time_candidates": analysis.get("time_candidates", []),
-        "preview": analysis.get("preview", []),
-    }
-
-    # save metadata to a json file for later retrieval by /forecast endpoint or worker
-    meta_path = os.path.join(job_folder, "metadata.json")
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
-
-    # Optionally return a presigned URL for download/preview (if using S3)
-    presigned_url = None
+    # Create job record in Supabase "jobs" table
+    supabase = get_supabase_client()
     try:
-        presigned_url = get_presigned_url_if_needed(file_path)
-    except Exception:
-        presigned_url = None
+        job_record = {
+            "id": job_id,
+            "user_id": user_id,
+            "status": "pending",
+            "input_file_path": storage_path,
+            "columns": json.dumps(analysis.get("columns", [])),  # Store as JSON string
+            "time_candidates": json.dumps(analysis.get("time_candidates", [])),
+            "preview": json.dumps(analysis.get("preview", [])),
+        }
+        
+        supabase.table("jobs").insert(job_record).execute()
+    except Exception as e:
+        # If job creation fails, try to clean up uploaded file
+        try:
+            from ..storage.supabase_storage import delete_from_supabase_storage
+            delete_from_supabase_storage(storage_path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Failed to create job record: {str(e)}")
+
+    # Get public URL for preview (optional)
+    file_url = get_public_url(storage_path)
 
     response = {
         "job_id": job_id,
-        "columns": metadata["columns"],
-        "time_candidates": metadata["time_candidates"],
-        "preview": metadata["preview"],
-        "file_url": presigned_url,
+        "columns": analysis.get("columns", []),
+        "time_candidates": analysis.get("time_candidates", []),
+        "preview": analysis.get("preview", []),
+        "file_url": file_url,
     }
 
     return JSONResponse(response)
@@ -90,7 +102,7 @@ async def get_upload_info(
     authorization: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
     """
-    Get information about an uploaded CSV file.
+    Get information about an uploaded CSV file from Supabase jobs table.
     Requires authentication and verifies job ownership.
 
     Args:
@@ -109,23 +121,33 @@ async def get_upload_info(
     # Sanitize job_id
     sanitized_id = re.sub(r"[./\\]", "", job_id)
 
-    job_folder = os.path.join(DATA_DIR, sanitized_id)
-    metadata_path = os.path.join(job_folder, "metadata.json")
-
-    if not os.path.exists(metadata_path):
-        raise HTTPException(status_code=404, detail="Upload not found")
-
-    with open(metadata_path, "r") as f:
-        metadata = json.load(f)
-
-    # Verify job ownership
-    job_user_id = metadata.get("user_id")
-    if job_user_id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    return {
-        "job_id": sanitized_id,
-        "columns": metadata.get("columns", []),
-        "time_candidates": metadata.get("time_candidates", []),
-        "preview": metadata.get("preview", []),
-    }
+    # Fetch job from Supabase
+    supabase = get_supabase_client()
+    try:
+        response = supabase.table("jobs").select("*").eq("id", sanitized_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Upload not found")
+        
+        job = response.data[0]
+        
+        # Verify job ownership
+        job_user_id = job.get("user_id")
+        if job_user_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Parse JSON fields
+        columns = json.loads(job.get("columns", "[]"))
+        time_candidates = json.loads(job.get("time_candidates", "[]"))
+        preview = json.loads(job.get("preview", "[]"))
+        
+        return {
+            "job_id": sanitized_id,
+            "columns": columns,
+            "time_candidates": time_candidates,
+            "preview": preview,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch job: {str(e)}")

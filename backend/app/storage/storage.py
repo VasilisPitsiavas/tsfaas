@@ -26,6 +26,34 @@ def get_s3_client():
     return s3_client
 
 
+def ensure_bucket_exists():
+    """
+    Ensure storage bucket exists, create if it doesn't.
+    """
+    if not settings.STORAGE_ENDPOINT:
+        return  # Using local storage, no bucket needed
+    
+    try:
+        from botocore.exceptions import ClientError
+        
+        s3_client = get_s3_client()
+        # Check if bucket exists
+        try:
+            s3_client.head_bucket(Bucket=settings.STORAGE_BUCKET)
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code == "404":
+                # Bucket doesn't exist, create it
+                s3_client.create_bucket(Bucket=settings.STORAGE_BUCKET)
+            else:
+                # Other error, re-raise
+                raise
+    except Exception:
+        # If bucket creation fails, continue anyway (might be permission issue)
+        # The actual operation will fail with a clearer error
+        pass
+
+
 def save_file(path: str, file_bytes: bytes) -> None:
     """
     Save file bytes to storage (local filesystem or S3/MinIO).
@@ -39,6 +67,8 @@ def save_file(path: str, file_bytes: bytes) -> None:
 
     # Check if using S3/MinIO (if path doesn't start with / or ./)
     if settings.STORAGE_ENDPOINT and not path.startswith(("/", "./")):
+        # Ensure bucket exists
+        ensure_bucket_exists()
         # Upload to S3/MinIO
         s3_client = get_s3_client()
         s3_client.put_object(Bucket=settings.STORAGE_BUCKET, Key=path, Body=file_bytes)

@@ -3,6 +3,7 @@
 from typing import Dict, Any, Optional
 import os
 import json
+import tempfile
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -12,8 +13,8 @@ warnings.filterwarnings("ignore")
 
 from app.ml.model_manager import ModelManager
 from app.ml.preprocessing import load_and_prepare_timeseries
-from app.storage.storage import get_file_from_storage
-from app.core.config import DATA_DIR
+from app.storage.supabase_storage import download_from_supabase_storage, upload_to_supabase_storage
+from app.utils.auth import get_supabase_client
 
 # Chart generation (optional, skip if matplotlib not available)
 try:
@@ -30,7 +31,8 @@ except ImportError:
 def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process a forecast job in the background.
-    Writes result.json, forecast.csv, and forecast.png (if matplotlib available).
+    Fetches job from Supabase, downloads file from Supabase Storage,
+    processes forecast, uploads results, and updates job record.
 
     Args:
         job_id: Upload job ID
@@ -39,23 +41,38 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
     Returns:
         Forecast results including predictions and metrics
     """
-    job_folder = os.path.join(DATA_DIR, job_id)
     forecast_id = forecast_config.get("forecast_id", "unknown")
+    supabase = get_supabase_client()
+    temp_file = None
 
     try:
-        # Load job metadata to get file path
-        metadata_path = os.path.join(job_folder, "metadata.json")
-
-        if not os.path.exists(metadata_path):
-            raise ValueError(f"Job metadata not found for job_id: {job_id}")
-
-        with open(metadata_path, "r") as f:
-            metadata = json.load(f)
-
-        file_path = metadata.get("file_path")
-        if not file_path or not os.path.exists(file_path):
-            # Try to get from storage
-            file_path = get_file_from_storage(job_id)
+        # Fetch job from Supabase jobs table
+        job_response = supabase.table("jobs").select("*").eq("id", job_id).execute()
+        
+        if not job_response.data or len(job_response.data) == 0:
+            raise ValueError(f"Job not found: {job_id}")
+        
+        job = job_response.data[0]
+        user_id = job.get("user_id")
+        input_file_path = job.get("input_file_path")
+        
+        if not input_file_path:
+            raise ValueError(f"Job {job_id} has no input_file_path")
+        
+        # Update job status to "processing"
+        supabase.table("jobs").update({"status": "processing"}).eq("id", job_id).execute()
+        
+        # Download file from Supabase Storage
+        try:
+            file_bytes = download_from_supabase_storage(input_file_path)
+        except Exception as e:
+            raise ValueError(f"Failed to download file from storage: {str(e)}")
+        
+        # Save to temporary file for processing
+        with tempfile.NamedTemporaryFile(mode='wb', suffix='.csv', delete=False) as tmp:
+            tmp.write(file_bytes)
+            temp_file = tmp.name
+            file_path = temp_file
 
         # Load and prepare time series
         time_column = forecast_config["time_column"]
@@ -185,13 +202,6 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             np.array(best_model_result["upper_bound"]) if best_model_result["upper_bound"] else None
         )
 
-        # Save model artifact
-        model_path = os.path.join(job_folder, f"model_{best_model_name}.pkl")
-        try:
-            model_manager.save_model(best_model, model_path)
-        except Exception as e:
-            warnings.warn(f"Failed to save model artifact: {e}")
-
         # Create forecast DataFrame
         forecast_df = pd.DataFrame({"date": forecast_dates, "forecast": predictions})
 
@@ -200,23 +210,49 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
         if upper_bound is not None:
             forecast_df["upper"] = upper_bound
 
-        # Export CSV
-        csv_path = os.path.join(job_folder, "forecast.csv")
-        forecast_df.to_csv(csv_path, index=False)
+        # Export CSV to temp file, then upload to Supabase Storage
+        csv_temp = None
+        chart_temp = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp:
+                forecast_df.to_csv(tmp.name, index=False)
+                csv_temp = tmp.name
+            
+            # Upload CSV to Supabase Storage
+            csv_storage_path = f"{user_id}/{job_id}/forecast.csv"
+            with open(csv_temp, 'rb') as f:
+                csv_bytes = f.read()
+            upload_to_supabase_storage(csv_bytes, csv_storage_path)
+        except Exception as e:
+            warnings.warn(f"Failed to save forecast CSV: {e}")
+            csv_storage_path = None
+        finally:
+            if csv_temp and os.path.exists(csv_temp):
+                os.unlink(csv_temp)
 
         # Generate chart (if matplotlib available)
-        chart_path = None
+        chart_storage_path = None
         if MATPLOTLIB_AVAILABLE:
             try:
-                chart_path = os.path.join(job_folder, "forecast.png")
-                _generate_forecast_chart(
-                    historical=df,
-                    forecast_df=forecast_df,
-                    target_column="y",
-                    output_path=chart_path,
-                )
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                    chart_temp = tmp.name
+                    _generate_forecast_chart(
+                        historical=df,
+                        forecast_df=forecast_df,
+                        target_column="y",
+                        output_path=chart_temp,
+                    )
+                
+                # Upload chart to Supabase Storage
+                chart_storage_path = f"{user_id}/{job_id}/forecast.png"
+                with open(chart_temp, 'rb') as f:
+                    chart_bytes = f.read()
+                upload_to_supabase_storage(chart_bytes, chart_storage_path)
             except Exception as e:
                 warnings.warn(f"Failed to generate chart: {e}")
+            finally:
+                if chart_temp and os.path.exists(chart_temp):
+                    os.unlink(chart_temp)
 
         # Prepare historical data for charting
         # Note: after preprocessing, target column is renamed to "y"
@@ -240,23 +276,11 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             confidence_upper=upper_bound,
         )
 
-        # Get user_id from forecast_config (if available) or from metadata
-        user_id = forecast_config.get("user_id")
-        if not user_id:
-            # Try to load from metadata.json as fallback
-            try:
-                if os.path.exists(metadata_path):
-                    with open(metadata_path, "r") as f:
-                        metadata = json.load(f)
-                        user_id = metadata.get("user_id")
-            except Exception:
-                pass
-
         # Prepare results
         results = {
             "forecast_id": forecast_id,
             "job_id": job_id,
-            "user_id": user_id,  # Include user_id for ownership verification
+            "user_id": user_id,
             "model_used": best_model_name,
             "predictions": (
                 predictions.tolist() if hasattr(predictions, "tolist") else list(predictions)
@@ -278,16 +302,23 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             "insights": insights,  # Plain-English insights
             "historical_data_points": len(df),
             "forecast_horizon": horizon,
-            "csv_path": csv_path,
-            "chart_path": chart_path,
             "status": "completed",
             "completed_at": datetime.utcnow().isoformat(),
         }
 
-        # Save results JSON
-        results_path = os.path.join(job_folder, "results.json")
-        with open(results_path, "w") as f:
-            json.dump(results, f, indent=2, default=str)
+        # Upload results JSON to Supabase Storage
+        output_storage_path = f"{user_id}/{job_id}/output.json"
+        results_json = json.dumps(results, indent=2, default=str)
+        upload_to_supabase_storage(results_json.encode('utf-8'), output_storage_path)
+
+        # Update job record in Supabase
+        supabase.table("jobs").update({
+            "status": "completed",
+            "output_file_path": output_storage_path,
+            "forecast_id": forecast_id,
+            "model_used": best_model_name,
+            "metrics": json.dumps(metrics),
+        }).eq("id", job_id).execute()
 
         return results
 
@@ -295,6 +326,17 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
         import traceback
 
         error_trace = traceback.format_exc()
+        
+        # Get user_id and job_id for error handling
+        try:
+            supabase = get_supabase_client()
+            job_response = supabase.table("jobs").select("user_id").eq("id", job_id).execute()
+            if job_response.data and len(job_response.data) > 0:
+                user_id = job_response.data[0].get("user_id")
+            else:
+                user_id = None
+        except Exception:
+            user_id = None
 
         error_result = {
             "forecast_id": forecast_id,
@@ -305,13 +347,22 @@ def process_forecast_job(job_id: str, forecast_config: Dict[str, Any]) -> Dict[s
             "failed_at": datetime.utcnow().isoformat(),
         }
 
-        # Save error result
+        # Update job record with error status
         try:
-            error_path = os.path.join(job_folder, "error.json")
-            with open(error_path, "w") as f:
-                json.dump(error_result, f, indent=2)
+            supabase = get_supabase_client()
+            supabase.table("jobs").update({
+                "status": "failed",
+                "error_message": str(e),
+            }).eq("id", job_id).execute()
         except Exception:
             pass
+
+        # Clean up temp file if it exists
+        if temp_file and os.path.exists(temp_file):
+            try:
+                os.unlink(temp_file)
+            except Exception:
+                pass
 
         return error_result
 

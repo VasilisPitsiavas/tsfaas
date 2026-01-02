@@ -121,21 +121,25 @@ async def create_forecast(
     user_id = user["id"]
 
     try:
-        # Load metadata to validate columns exist and verify ownership
-        job_folder = os.path.join(DATA_DIR, request.job_id)
-        metadata_path = os.path.join(job_folder, "metadata.json")
-
-        import json
-
-        with open(metadata_path, "r") as f:
-            metadata = json.load(f)
-
+        # Fetch job from Supabase to validate columns and verify ownership
+        from app.utils.auth import get_supabase_client
+        supabase = get_supabase_client()
+        
+        job_response = supabase.table("jobs").select("*").eq("id", request.job_id).execute()
+        
+        if not job_response.data or len(job_response.data) == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        job = job_response.data[0]
+        
         # Verify job ownership
-        job_user_id = metadata.get("user_id")
+        job_user_id = job.get("user_id")
         if job_user_id != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
-
-        available_columns = metadata.get("columns", [])
+        
+        # Parse columns from JSON string
+        import json
+        available_columns = json.loads(job.get("columns", "[]"))
 
         # Validate columns exist
         if request.time_column not in available_columns:
@@ -156,8 +160,8 @@ async def create_forecast(
                 raise HTTPException(
                     status_code=400, detail=f"Exogenous columns not found: {', '.join(missing)}"
                 )
-
-        # Prepare forecast config
+        
+        # Prepare forecast config (worker will fetch job from Supabase)
         forecast_config = {
             "time_column": request.time_column,
             "target_column": request.target_column,
@@ -215,99 +219,68 @@ async def get_forecast(
     # Try to get result from RQ
     result = get_job_result(forecast_id)
 
-    # Verify ownership if result came from cache
-    if result is not None:
-        # Extract job_id from result to verify ownership
-        result_job_id = result.get("job_id")
-        if result_job_id:
-            # Verify job ownership
-            job_folder = os.path.join(DATA_DIR, result_job_id)
-            metadata_path = os.path.join(job_folder, "metadata.json")
-            
-            if os.path.exists(metadata_path):
-                try:
-                    with open(metadata_path, "r") as f:
-                        metadata = json.load(f)
-                        job_user_id = metadata.get("user_id")
-                        if job_user_id != user_id:
-                            raise HTTPException(status_code=403, detail="Access denied")
-                except Exception as e:
-                    # If metadata exists but can't be read, try fallback verification
-                    pass
-            else:
-                # Metadata not found - try to verify ownership from results.json if it exists
-                # This handles the case where worker and backend are in separate containers
-                results_path = os.path.join(job_folder, "results.json")
-                if os.path.exists(results_path):
-                    try:
-                        with open(results_path, "r") as f:
-                            results_data = json.load(f)
-                            # If results.json has user_id, verify it
-                            results_user_id = results_data.get("user_id")
-                            if results_user_id:
-                                if results_user_id != user_id:
-                                    raise HTTPException(status_code=403, detail="Access denied")
-                                # Ownership verified from results.json
-                            else:
-                                # No user_id in results - can't verify ownership safely
-                                raise HTTPException(status_code=404, detail="Job metadata not found")
-                    except HTTPException:
-                        raise
-                    except Exception:
-                        # If we can't read results.json, fall through to error
-                        raise HTTPException(status_code=404, detail="Job metadata not found")
-                else:
-                    # No metadata and no results - can't verify ownership
-                    raise HTTPException(status_code=404, detail="Job metadata not found")
-        else:
-            # Result doesn't contain job_id - this shouldn't happen for valid results
-            # But to be safe, we can't verify ownership, so reject it
-            raise HTTPException(status_code=500, detail="Invalid result format: missing job_id")
-
+    # If result not in RQ cache, fetch from Supabase Storage
     if result is None:
-        # Check if results exist in file system (fallback)
-        # This happens if job completed but RQ result expired
+        # Find job by forecast_id in Supabase jobs table
+        from app.utils.auth import get_supabase_client
+        supabase = get_supabase_client()
+        
         try:
-            # Forecast_id is RQ job ID, but we need to find the job_id
-            # For now, try to load from any job folder that has this forecast_id
-            # In production, you'd want a mapping table
-            results_path = None
-            if os.path.exists(DATA_DIR):
-                for folder in os.listdir(DATA_DIR):
-                    job_folder = os.path.join(DATA_DIR, folder)
-                    
-                    result_file = os.path.join(job_folder, "results.json")
-                    if os.path.exists(result_file):
-                        with open(result_file, "r") as f:
-                            data = json.load(f)
-                            if data.get("forecast_id") == forecast_id:
-                                # Verify ownership from results.json (preferred) or metadata.json
-                                results_user_id = data.get("user_id")
-                                if results_user_id:
-                                    if results_user_id != user_id:
-                                        raise HTTPException(status_code=403, detail="Access denied")
-                                else:
-                                    # Fallback to metadata.json if user_id not in results
-                                    metadata_path_check = os.path.join(job_folder, "metadata.json")
-                                    if os.path.exists(metadata_path_check):
-                                        with open(metadata_path_check, "r") as f:
-                                            metadata_check = json.load(f)
-                                            if metadata_check.get("user_id") != user_id:
-                                                raise HTTPException(status_code=403, detail="Access denied")
-                                    else:
-                                        # Can't verify ownership - skip this result
-                                        continue
-                                
-                                results_path = result_file
-                                result = data
-                                break
-
-            if results_path is None:
+            job_response = supabase.table("jobs").select("*").eq("forecast_id", forecast_id).execute()
+            
+            if not job_response.data or len(job_response.data) == 0:
                 raise HTTPException(status_code=404, detail="Forecast not found")
+            
+            job = job_response.data[0]
+            job_user_id = job.get("user_id")
+            
+            # Verify ownership
+            if job_user_id != user_id:
+                raise HTTPException(status_code=403, detail="Access denied")
+            
+            # Check if job is completed
+            job_status = job.get("status")
+            if job_status != "completed":
+                raise HTTPException(status_code=404, detail=f"Forecast not completed. Status: {job_status}")
+            
+            # Download results from Supabase Storage
+            output_file_path = job.get("output_file_path")
+            if not output_file_path:
+                raise HTTPException(status_code=404, detail="Forecast results not found")
+            
+            from app.storage.supabase_storage import download_from_supabase_storage
+            results_bytes = download_from_supabase_storage(output_file_path)
+            result = json.loads(results_bytes.decode('utf-8'))
+            
         except HTTPException:
             raise
-        except Exception:
-            raise HTTPException(status_code=404, detail="Forecast not found")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch forecast results: {str(e)}")
+    else:
+        # Result came from RQ cache - verify ownership
+        result_job_id = result.get("job_id")
+        if result_job_id:
+            # Verify ownership from Supabase jobs table
+            from app.utils.auth import get_supabase_client
+            supabase = get_supabase_client()
+            
+            try:
+                job_response = supabase.table("jobs").select("user_id").eq("id", result_job_id).execute()
+                if job_response.data and len(job_response.data) > 0:
+                    job_user_id = job_response.data[0].get("user_id")
+                    if job_user_id != user_id:
+                        raise HTTPException(status_code=403, detail="Access denied")
+                else:
+                    raise HTTPException(status_code=404, detail="Job not found")
+            except HTTPException:
+                raise
+            except Exception:
+                # Fallback: check user_id in result
+                result_user_id = result.get("user_id")
+                if result_user_id and result_user_id != user_id:
+                    raise HTTPException(status_code=403, detail="Access denied")
+        else:
+            raise HTTPException(status_code=500, detail="Invalid result format: missing job_id")
 
     if isinstance(result, dict) and result.get("status") == "failed":
         raise HTTPException(status_code=500, detail=result.get("error", "Forecast failed"))
