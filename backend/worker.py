@@ -9,12 +9,18 @@ from redis import Redis
 from app.core.config import settings
 
 if __name__ == "__main__":
-    redis_conn = Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        decode_responses=False,  # RQ needs bytes
-    )
+    connection_params = {
+        "host": settings.REDIS_HOST,
+        "port": settings.REDIS_PORT,
+        "db": settings.REDIS_DB,
+        "decode_responses": False,  # RQ needs bytes
+    }
+    
+    # Add password if provided
+    if settings.REDIS_PASSWORD:
+        connection_params["password"] = settings.REDIS_PASSWORD
+    
+    redis_conn = Redis(**connection_params)
 
     print(f"Starting RQ worker connected to {settings.REDIS_HOST}:{settings.REDIS_PORT}")
     print(f"Listening on queue: forecast")

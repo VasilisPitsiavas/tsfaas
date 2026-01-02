@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
+    REDIS_PASSWORD: str = ""  # Optional password for Redis authentication
 
     # Database settings (Postgres - for future use)
     DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/forecastly"

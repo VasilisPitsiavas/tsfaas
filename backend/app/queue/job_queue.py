@@ -15,12 +15,18 @@ def get_redis_connection() -> Redis:
     Returns:
         Redis connection instance
     """
-    return Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        decode_responses=False,  # RQ needs bytes
-    )
+    connection_params = {
+        "host": settings.REDIS_HOST,
+        "port": settings.REDIS_PORT,
+        "db": settings.REDIS_DB,
+        "decode_responses": False,  # RQ needs bytes
+    }
+    
+    # Add password if provided
+    if settings.REDIS_PASSWORD:
+        connection_params["password"] = settings.REDIS_PASSWORD
+    
+    return Redis(**connection_params)
 
 
 def get_queue(name: str = "forecast") -> Queue:
