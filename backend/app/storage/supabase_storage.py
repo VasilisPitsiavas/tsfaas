@@ -27,18 +27,35 @@ def upload_to_supabase_storage(
     
     Returns:
         Storage path
+    
+    Raises:
+        Exception: If upload fails
     """
     supabase = get_supabase_client()
     bucket_name = bucket or get_storage_bucket()
     
-    # Upload file
-    supabase.storage.from_(bucket_name).upload(
-        path=storage_path,
-        file=file_bytes,
-        file_options={"content-type": "text/csv", "upsert": "true"}
-    )
-    
-    return storage_path
+    try:
+        # Upload file - convert bytes to file-like object if needed
+        if isinstance(file_bytes, bytes):
+            # Supabase Python client expects bytes or file-like object
+            supabase.storage.from_(bucket_name).upload(
+                path=storage_path,
+                file=file_bytes,
+                file_options={"content-type": "text/csv", "upsert": "true"}
+            )
+        else:
+            raise ValueError("file_bytes must be bytes")
+        
+        return storage_path
+    except Exception as e:
+        # Provide more detailed error message
+        error_msg = str(e)
+        if "bucket" in error_msg.lower() or "not found" in error_msg.lower():
+            raise Exception(f"Storage bucket '{bucket_name}' not found. Please create it in Supabase Dashboard → Storage.")
+        elif "permission" in error_msg.lower() or "access" in error_msg.lower():
+            raise Exception(f"Permission denied. Check storage policies for bucket '{bucket_name}'.")
+        else:
+            raise Exception(f"Failed to upload to Supabase Storage: {error_msg}")
 
 
 def download_from_supabase_storage(

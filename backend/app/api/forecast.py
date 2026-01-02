@@ -34,7 +34,7 @@ def sanitize_job_id(job_id: str) -> str:
 
 def validate_job_exists(job_id: str) -> bool:
     """
-    Validate that a job exists and metadata is accessible.
+    Validate that a job exists in Supabase.
 
     Args:
         job_id: Job identifier
@@ -42,13 +42,18 @@ def validate_job_exists(job_id: str) -> bool:
     Returns:
         True if job exists and is valid
     """
-    sanitized_id = sanitize_job_id(job_id)
-    if sanitized_id != job_id:
-        return False  # Job ID was modified, reject
-
-    job_folder = os.path.join(DATA_DIR, sanitized_id)
-    metadata_path = os.path.join(job_folder, "metadata.json")
-    return os.path.exists(metadata_path)
+    try:
+        sanitized_id = sanitize_job_id(job_id)
+        if sanitized_id != job_id:
+            return False  # Job ID was modified, reject
+        
+        from app.utils.auth import get_supabase_client
+        supabase = get_supabase_client()
+        
+        response = supabase.table("jobs").select("id").eq("id", sanitized_id).execute()
+        return response.data is not None and len(response.data) > 0
+    except Exception:
+        return False
 
 
 class ForecastRequest(BaseModel):
