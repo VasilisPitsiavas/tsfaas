@@ -7,9 +7,8 @@ import json
 import re
 from datetime import datetime
 
-from app.core.config import DATA_DIR
 from app.queue.job_queue import get_job_status
-from app.utils.auth import require_auth
+from app.utils.auth import require_auth, get_supabase_client
 
 router = APIRouter()
 
@@ -49,97 +48,75 @@ async def list_jobs(
     if offset < 0:
         offset = 0
 
-    jobs = []
-
-    if not os.path.exists(DATA_DIR):
-        return {"jobs": [], "total": 0, "limit": limit, "offset": offset}
-
-    # Scan all job folders
-    for folder_name in os.listdir(DATA_DIR):
-        job_folder = os.path.join(DATA_DIR, folder_name)
-
-        # Skip if not a directory
-        if not os.path.isdir(job_folder):
-            continue
-
-        # Skip if folder name doesn't look like a UUID
-        if len(folder_name) != 36:  # UUID length
-            continue
-
-        metadata_path = os.path.join(job_folder, "metadata.json")
-        if not os.path.exists(metadata_path):
-            continue
-
-        try:
-            with open(metadata_path, "r") as f:
-                metadata = json.load(f)
-
-            # Filter by user_id - only show jobs belonging to the authenticated user
-            job_user_id = metadata.get("user_id")
-            if job_user_id != user_id:
-                continue
-
-            job_id = metadata.get("job_id", folder_name)
-
-            # Try to get forecast status if results exist
-            results_path = os.path.join(job_folder, "results.json")
-            error_path = os.path.join(job_folder, "error.json")
-
-            status = "uploaded"
-            forecast_id = None
-            target_column = None
-            model_used = None
-            created_at = None
-
-            # Check if there's a forecast result
-            if os.path.exists(results_path):
+    # Fetch jobs from Supabase
+    supabase = get_supabase_client()
+    try:
+        # Query jobs for this user, ordered by created_at descending
+        response = supabase.table("jobs").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        
+        jobs = []
+        for job in response.data:
+            job_id = job.get("id")
+            status = job.get("status", "pending")
+            forecast_id = job.get("forecast_id")
+            model_used = job.get("model_used")
+            created_at = job.get("created_at")
+            
+            # Parse JSON fields
+            columns = []
+            try:
+                columns_str = job.get("columns")
+                if columns_str:
+                    columns = json.loads(columns_str) if isinstance(columns_str, str) else columns_str
+            except Exception:
+                pass
+            
+            # Extract filename from input_file_path if available
+            file_name = "unknown.csv"
+            input_file_path = job.get("input_file_path", "")
+            if input_file_path:
+                # Path format: {user_id}/{job_id}/input.csv
+                parts = input_file_path.split("/")
+                if len(parts) >= 3:
+                    # Try to get original filename from path or use default
+                    file_name = parts[-1] if parts[-1] != "input.csv" else "uploaded_file.csv"
+            
+            # Check RQ status if forecast_id exists and status is pending/processing
+            if forecast_id and status in ["pending", "processing"]:
                 try:
-                    with open(results_path, "r") as f:
-                        results = json.load(f)
-                    status = "completed"
-                    forecast_id = results.get("forecast_id")
-                    model_used = results.get("model_used")
-                    created_at = results.get("completed_at")
+                    rq_status = get_job_status(forecast_id)
+                    if rq_status:
+                        rq_status_str = rq_status.get("status", "")
+                        if rq_status_str in ["queued", "started"]:
+                            status = "processing"
+                        elif rq_status_str == "finished":
+                            status = "completed"
+                        elif rq_status_str == "failed":
+                            status = "failed"
                 except Exception:
                     pass
-
-            # Check if there's an error
-            elif os.path.exists(error_path):
-                try:
-                    with open(error_path, "r") as f:
-                        error_data = json.load(f)
-                    status = "failed"
-                    created_at = error_data.get("failed_at")
-                except Exception:
-                    pass
-
-            # Try to get created_at from metadata or folder mtime
-            if not created_at:
-                try:
-                    created_at = datetime.fromtimestamp(os.path.getmtime(metadata_path)).isoformat()
-                except Exception:
-                    created_at = datetime.now().isoformat()
-
-            # Build job info
+            
+            # Map status to frontend expected values
+            # Supabase: "pending" -> Frontend: "uploaded"
+            if status == "pending":
+                status = "uploaded"
+            
             job_info = {
                 "job_id": job_id,
-                "file_name": metadata.get("original_filename", "unknown.csv"),
+                "file_name": file_name,
                 "status": status,
-                "columns": metadata.get("columns", []),
+                "columns": columns,
                 "created_at": created_at,
                 "forecast_id": forecast_id,
-                "target_column": target_column,
+                "target_column": None,  # Not stored in jobs table
                 "model_used": model_used,
             }
-
+            
             jobs.append(job_info)
-
-        except Exception as e:
-            # Skip jobs that can't be read
-            continue
-
-    # Sort by created_at descending (newest first)
-    jobs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            
+    except Exception as e:
+        # If Supabase query fails, return empty list
+        return {"jobs": [], "total": 0, "limit": limit, "offset": offset, "error": str(e)}
 
     # Apply pagination
     total = len(jobs)
@@ -173,66 +150,100 @@ async def get_job(
     if sanitized_id != job_id:
         raise HTTPException(status_code=400, detail="Invalid job_id format")
 
-    job_folder = os.path.join(DATA_DIR, sanitized_id)
-    metadata_path = os.path.join(job_folder, "metadata.json")
-
-    if not os.path.exists(metadata_path):
-        raise HTTPException(status_code=404, detail="Job not found")
-
+    # Fetch job from Supabase
+    supabase = get_supabase_client()
     try:
-        with open(metadata_path, "r") as f:
-            metadata = json.load(f)
-
+        response = supabase.table("jobs").select("*").eq("id", sanitized_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        job = response.data[0]
+        
         # Verify job ownership
-        job_user_id = metadata.get("user_id")
+        job_user_id = job.get("user_id")
         if job_user_id != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
-
-        # Get status and forecast info
-        results_path = os.path.join(job_folder, "results.json")
-        error_path = os.path.join(job_folder, "error.json")
-
-        status = "uploaded"
-        forecast_id = None
-        model_used = None
+        
+        status = job.get("status", "pending")
+        forecast_id = job.get("forecast_id")
+        model_used = job.get("model_used")
+        
+        # Parse JSON fields
+        columns = []
+        time_candidates = []
+        preview = []
         metrics = None
-
-        if os.path.exists(results_path):
-            try:
-                with open(results_path, "r") as f:
-                    results = json.load(f)
-                status = "completed"
-                forecast_id = results.get("forecast_id")
-                model_used = results.get("model_used")
-                metrics = results.get("metrics")
-            except Exception:
-                pass
-        elif os.path.exists(error_path):
-            status = "failed"
-
-        # Try to get forecast status from RQ if forecast_id exists
-        if forecast_id:
+        
+        try:
+            columns_str = job.get("columns")
+            if columns_str:
+                columns = json.loads(columns_str) if isinstance(columns_str, str) else columns_str
+        except Exception:
+            pass
+        
+        try:
+            time_candidates_str = job.get("time_candidates")
+            if time_candidates_str:
+                time_candidates = json.loads(time_candidates_str) if isinstance(time_candidates_str, str) else time_candidates_str
+        except Exception:
+            pass
+        
+        try:
+            preview_str = job.get("preview")
+            if preview_str:
+                preview = json.loads(preview_str) if isinstance(preview_str, str) else preview_str
+        except Exception:
+            pass
+        
+        try:
+            metrics_data = job.get("metrics")
+            if metrics_data:
+                metrics = metrics_data if isinstance(metrics_data, dict) else json.loads(metrics_data) if isinstance(metrics_data, str) else None
+        except Exception:
+            pass
+        
+        # Map status to frontend expected values
+        if status == "pending":
+            status = "uploaded"
+        
+        # Check RQ status if forecast_id exists
+        if forecast_id and status in ["pending", "processing"]:
             try:
                 rq_status = get_job_status(forecast_id)
                 if rq_status:
                     rq_status_str = rq_status.get("status", "")
                     if rq_status_str in ["queued", "started"]:
                         status = "processing"
+                    elif rq_status_str == "finished":
+                        status = "completed"
+                    elif rq_status_str == "failed":
+                        status = "failed"
             except Exception:
                 pass
-
+        
+        # Extract filename from input_file_path
+        file_name = "unknown.csv"
+        input_file_path = job.get("input_file_path", "")
+        if input_file_path:
+            parts = input_file_path.split("/")
+            if len(parts) >= 3:
+                file_name = parts[-1] if parts[-1] != "input.csv" else "uploaded_file.csv"
+        
         return {
             "job_id": sanitized_id,
-            "file_name": metadata.get("original_filename"),
+            "file_name": file_name,
             "status": status,
-            "columns": metadata.get("columns", []),
-            "time_candidates": metadata.get("time_candidates", []),
-            "preview": metadata.get("preview", []),
-            "created_at": datetime.fromtimestamp(os.path.getmtime(metadata_path)).isoformat(),
+            "columns": columns,
+            "time_candidates": time_candidates,
+            "preview": preview,
+            "created_at": job.get("created_at"),
             "forecast_id": forecast_id,
             "model_used": model_used,
             "metrics": metrics,
         }
-
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading job: {str(e)}")
