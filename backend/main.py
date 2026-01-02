@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router
+from app.core.config import settings
 
 # Create FastAPI app instance (ONLY ONE instance)
 app = FastAPI(
@@ -15,12 +16,20 @@ app = FastAPI(
 )
 
 # CORS middleware - Apply IMMEDIATELY after creating the app (BEFORE all routes)
+# Read allowed origins from environment variable CORS_ORIGINS
+# Format: comma-separated list, e.g., "https://domain1.com,https://domain2.com"
+cors_origins = settings.CORS_ORIGINS
+if isinstance(cors_origins, str):
+    # Split comma-separated string into list
+    cors_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://tsfaas-forecastly.vercel.app"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["*"],  # Allow all headers for file uploads (mobile browsers send various headers)
+    expose_headers=["*"],
 )
 
 # Include API router AFTER CORS middleware
@@ -56,8 +65,11 @@ async def debug_routes():
 @app.get("/test-cors")
 async def test_cors():
     """Test endpoint to verify CORS headers are being sent."""
+    cors_origins = settings.CORS_ORIGINS
+    if isinstance(cors_origins, str):
+        cors_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
     return {
         "status": "ok",
         "cors": "configured",
-        "allowed_origin": "https://tsfaas-forecastly.vercel.app"
+        "allowed_origins": cors_origins if isinstance(cors_origins, list) else [cors_origins]
     }

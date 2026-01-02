@@ -7,9 +7,28 @@ import { createClient } from '@/lib/supabase/client';
 // Get API URL and ensure it has a protocol
 let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Log for debugging (only in development, only in browser)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('[API] NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+  console.log('[API] Initial API_BASE_URL:', API_BASE_URL);
+}
+
 // Ensure API URL has protocol (for production)
 if (API_BASE_URL && !API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://')) {
   API_BASE_URL = `https://${API_BASE_URL}`;
+}
+
+// Final validation - ensure we have a valid URL
+if (!API_BASE_URL || API_BASE_URL === 'undefined') {
+  console.error('[API] ERROR: NEXT_PUBLIC_API_URL is not set!');
+  API_BASE_URL = 'https://tsfaas-production.up.railway.app'; // Fallback
+}
+
+// Remove trailing slash if present
+API_BASE_URL = API_BASE_URL.replace(/\/$/, '');
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('[API] Final API_BASE_URL:', API_BASE_URL);
 }
 
 const apiClient = axios.create({
@@ -30,18 +49,37 @@ apiClient.interceptors.request.use(async (config) => {
     } = await supabase.auth.getSession();
     
     if (error) {
-      console.error('[API] Error getting session:', error);
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[API] Error getting session:', error);
+      }
     }
     
     if (session?.access_token) {
       config.headers.Authorization = `Bearer ${session.access_token}`;
-      console.log('[API] Added auth token to request:', config.url);
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[API] Added auth token to request:', config.url);
+      }
     } else {
-      console.warn('[API] No session found for request:', config.url);
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[API] No session found for request:', config.url);
+      }
       // Don't make the request if no session - let the 401 handler deal with it
     }
+    
+    // CRITICAL FIX for mobile browsers: Remove Content-Type header for FormData
+    // Browser MUST set multipart/form-data with boundary automatically
+    // This prevents "400 Bad Request" on OPTIONS preflight requests
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
   } catch (error) {
-    console.error('[API] Error in auth interceptor:', error);
+    // Always log errors, but don't expose sensitive info
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[API] Error in auth interceptor:', error);
+    }
   }
   
   return config;
@@ -51,16 +89,18 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Log detailed error information
-    console.error('[API] Request failed:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message,
-      code: error.code,
-    });
+    // Log detailed error information (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[API] Request failed:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        code: error.code,
+      });
+    }
     
     if (error.response?.status === 401) {
       // Clear any stale session
@@ -134,11 +174,12 @@ export const api = {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await apiClient.post<UploadResponse>('/api/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // CRITICAL FIX for mobile browsers:
+      // The interceptor will automatically:
+      // 1. Add Authorization header
+      // 2. Remove Content-Type header for FormData (browser sets it with boundary)
+      // This fixes "400 Bad Request" on OPTIONS preflight requests
+      const response = await apiClient.post<UploadResponse>('/api/upload', formData);
       
       return response.data;
     },
